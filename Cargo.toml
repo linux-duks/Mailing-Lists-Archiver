@@ -1,0 +1,12 @@
+[package]
+name = "nntp-tracker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+config = { version = "0.15", default-features = false, features = ["json", "yaml"] }
+glob = "0.3.3"
+inquire = { version = "0.9", default-features = false, features = ["termion"] }
+nntp = { path = "./rust-nntp" }
+serde = { version = "1.0", features = ["derive"] }
