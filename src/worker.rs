@@ -1,12 +1,11 @@
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
-use std::error::Error;
-use std::fs;
-use std::fs::File;
-use std::io::{self, LineWriter, prelude::*};
-use std::path::Path;
 use std::{
     collections::BTreeMap,
+    error::Error,
+    fs::{self, File},
+    io::{self, LineWriter, Write},
+    path::Path,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
     vec,
