@@ -1,74 +1,20 @@
-use clap::{Args, Parser, ValueHint};
+use env_logger;
+use nntp::NNTPStream;
 
-use config::Config;
-// TODO: test use confique::Config;
-use glob::glob;
-
-use inquire::Select;
-
-use nntp::{Article, NNTPStream};
-
-#[derive(Debug, Parser, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
-pub struct Opts {
-    // config file location override
-    #[arg(short, long, default_value = "nntp_config*", value_hint = ValueHint::FilePath)]
-    config_file: String,
-
-    #[clap(flatten)]
-    app_config: Option<AppConfig>,
-}
-
-#[derive(Debug, Args, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq, Clone)]
-pub struct AppConfig {
-    #[arg(short = 'H', long)]
-    hostname: Option<String>,
-    #[arg(short, long, default_value = "119")]
-    port: u16,
-
-    #[arg(long)]
-    list_group: Option<String>,
-}
+mod config;
+// mod threadpool;
+mod worker;
 
 fn main() {
-    let opts = Opts::parse();
+    env_logger::init();
 
-    // println!("{:#?}", opts);
+    let mut app_config = config::read_config().unwrap();
 
-    let base_config = match opts.app_config {
-        Some(app_config) => app_config,
-        None => AppConfig::default(),
-    };
-
-    let defaults = Config::try_from(&base_config).unwrap();
-
-    // TODO: config layering is not working properly
-    let config = Config::builder()
-        .set_default("port", 119)
-        .unwrap()
-        .add_source(defaults)
-        // env variable config
-        .add_source(
-            config::Environment::with_prefix("NNTP")
-                .try_parsing(true)
-                .separator("_"),
-        )
-        // TODO:  add xdg_home config
-        .add_source(
-            glob(&opts.config_file)
-                .unwrap()
-                .map(|path| config::File::from(path.unwrap()))
-                .collect::<Vec<_>>(),
-        );
-
-    let config = config.build().unwrap();
-
-    let mut app_config: AppConfig = config.try_deserialize().unwrap();
-
-    let mut nntp_stream = match NNTPStream::connect((app_config.hostname.unwrap(), app_config.port))
-    {
-        Ok(stream) => stream,
-        Err(e) => panic!("{}", e),
-    };
+    let mut nntp_stream =
+        match NNTPStream::connect((app_config.hostname.clone().unwrap(), app_config.port)) {
+            Ok(stream) => stream,
+            Err(e) => panic!("{}", e),
+        };
 
     match nntp_stream.capabilities() {
         Ok(lines) => {
@@ -79,33 +25,93 @@ fn main() {
         Err(e) => panic!("{}", e),
     }
 
-    if app_config.list_group.is_none() {
-        let answer = Select::new(
-            "Group not configured. Select one now:",
-            nntp_stream.list().unwrap(),
-        )
-        .prompt()
-        .unwrap_or_else(|_| std::process::exit(0));
+    // if app_config.group_lists.is_none() {
+    //
+    //     let list_options = nntp_stream.list().unwrap();
+    //     config::get_group_lists(app_config, list_options)
+    //
+    //
+    //     let answer = MultiSelect::new(
+    //         "Group not configured. Select one now:",
+    //         nntp_stream.list().unwrap(),
+    //     )
+    //     .prompt()
+    //     .unwrap_or_else(|_| std::process::exit(0));
+    //
+    //     if answer.len() == 0 {
+    //         app_config.group_lists = None
+    //     } else {
+    //         app_config.group_lists = Some(answer.iter().map(|an| an.name).collect())
+    //     }
+    // }
 
-        app_config.list_group = Some(answer.name)
-    }
+    let list_options = nntp_stream.list().unwrap();
+    let groups = app_config
+        .get_group_lists(list_options.iter().map(move |an| an.clone().name).collect())
+        .unwrap();
 
-    match nntp_stream.group(&app_config.list_group.unwrap()) {
-        Ok(_) => (),
-        Err(e) => panic!("{}", e),
-    }
+    println!("made a selection of {} {:#?}", groups.len(), groups);
 
-    match nntp_stream.article_by_number(1) {
-        Ok(Article { headers, body }) => {
-            for (key, value) in headers.iter() {
-                println!("{}: {}", key, value)
-            }
-            for line in body.iter() {
-                print!("{}", line)
-            }
-        }
-        Err(e) => panic!("{}", e),
-    }
+    // let nntp_clone = nntp_stream.clone()
+    worker::Worker::new(&mut nntp_stream, groups).run();
+
+    // let my_stream = smol::stream::iter(groups);
+    //
+    // let ex = smol::Executor::new();
+    //
+    // ex.run(async {
+    //     // Spawn the set of futures on an executor.
+    //     let handles: Vec<smol::Task<()>> = my_stream
+    //         .map(|item| {
+    //             // Spawn the future on the executor.
+    //             ex.spawn(async move {
+    //                 //         smol::Timer::after(std::time::Duration::from_secs(5)).await;
+    //                 //         format!("result from dynamic future {}", group)
+    //                 print!("{}", item)
+    //             })
+    //         })
+    //         .collect()
+    //         .await;
+    //
+    //     // Wait for all of the handles to complete.
+    //     for handle in handles {
+    //         handle.await;
+    //     }
+    // })
+    // .await;
+
+    // let mut tasks = FuturesUnordered::new();
+    // for group in groups {
+    //     tasks.push(async move {
+    //         smol::Timer::after(std::time::Duration::from_secs(5)).await;
+    //         format!("result from dynamic future {}", group)
+    //     });
+    // }
+    //
+    // let ex = smol::Executor::new();
+    // smol::block_on(futures::try_join!(tasks));
+
+    // tasks.inspect
+    // tasks::join();
+    // futures::join!(futures)
+
+    // smol::
+    // match nntp_stream.group("test") {
+    //     Ok(_) => (),
+    //     Err(e) => panic!("{}", e),
+    // }
+    //
+    // match nntp_stream.article_by_number(1) {
+    //     Ok(Article { headers, body }) => {
+    //         for (key, value) in headers.iter() {
+    //             println!("{}: {}", key, value)
+    //         }
+    //         for line in body.iter() {
+    //             print!("{}", line)
+    //         }
+    //     }
+    //     Err(e) => panic!("{}", e),
+    // js}
 
     let _ = nntp_stream.quit();
 }
