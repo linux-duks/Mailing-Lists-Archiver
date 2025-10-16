@@ -20,10 +20,15 @@ pub struct Worker<'a> {
     // TODO: convert to trait
     nntp_stream: &'a mut NNTPStream,
     tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
+    base_output_path: String,
 }
 
 impl Worker<'_> {
-    pub fn new(nntp_stream: &mut NNTPStream, groups: Vec<String>) -> Worker {
+    pub fn new(
+        nntp_stream: &mut NNTPStream,
+        groups: Vec<String>,
+        base_output_path: String,
+    ) -> Worker {
         let mut tasklist: BTreeMap<Instant, String> = BTreeMap::new();
 
         // Schedule all groups for check in the next second
@@ -33,16 +38,16 @@ impl Worker<'_> {
                 group,
             );
         }
-        return Worker {
-            nntp_stream: nntp_stream,
+        Worker {
+            nntp_stream,
             tasklist: Arc::new(RwLock::new(tasklist)),
-        };
+            base_output_path,
+        }
     }
 
     pub fn run(&mut self) {
         loop {
             std::thread::sleep(Duration::from_secs(1));
-            // println!("ticked: len {}", self.tasklist.is_empty());
             let mut consummed = vec![];
             {
                 let tasklist_guard = self.tasklist.read().unwrap();
@@ -59,7 +64,7 @@ impl Worker<'_> {
                 // start processing items
                 for (k, group_name) in ready_tasks {
                     self.handle_group(group_name.clone());
-                    consummed.push(k.clone());
+                    consummed.push(k);
                 }
             }
             // removed from
@@ -71,7 +76,11 @@ impl Worker<'_> {
 
     fn handle_group(&mut self, group_name: String) {
         let last_article_number = read_number_or_create(Path::new(
-            format!("./{}/__last_article_number", group_name).as_str(),
+            format!(
+                "{}/{}/__last_article_number",
+                self.base_output_path, group_name
+            )
+            .as_str(),
         ))
         .unwrap() as usize;
 
@@ -103,10 +112,6 @@ impl Worker<'_> {
                     // no new emails, reschedule for next minute
                     self.reschedule_group(group_name.clone(), INTERVAL_AFTER_NO_NEWS);
                 }
-                println!(
-                    "{} : H{} L{} .. LAST {}",
-                    group_name, group.high, group.low, last_article_number
-                )
             }
             Err(e) => {
                 log::error!("failure connecting to {group_name}, error: {e}");
@@ -132,12 +137,24 @@ impl Worker<'_> {
             {
                 Ok(raw_article) => {
                     write_lines_file(
-                        Path::new(format!("./{}/{}.eml", group_name, current_mail).as_str()),
+                        Path::new(
+                            format!(
+                                "{}/{}/{}.eml",
+                                self.base_output_path, group_name, current_mail
+                            )
+                            .as_str(),
+                        ),
                         raw_article,
                     )
                     .unwrap();
                     write_lines_file(
-                        Path::new(format!("./{}/__last_article_number", group_name).as_str()),
+                        Path::new(
+                            format!(
+                                "{}/{}/__last_article_number",
+                                self.base_output_path, group_name
+                            )
+                            .as_str(),
+                        ),
                         vec![format!("{}", current_mail)],
                     )
                     .unwrap();
@@ -145,6 +162,12 @@ impl Worker<'_> {
                 Err(e) => panic!("Error reading mail {}", e),
             }
 
+            log::info!(
+                "{group_name} {}/{} ({}%)",
+                current_mail,
+                high,
+                (current_mail as f64 / high as f64 * 100.0) as usize
+            );
             std::thread::sleep(Duration::from_millis(10));
         }
     }
@@ -220,12 +243,12 @@ fn read_number_or_create(path: &Path) -> Result<usize, Box<dyn Error>> {
                     // Create the full directory path if it doesn't exist.
                     // `create_dir_all` is convenient as it won't error if the path already exists.
                     fs::create_dir_all(parent_dir)?;
-                    println!("Ensured directory exists: {}", parent_dir.display());
+                    log::info!("Ensured directory exists: {}", parent_dir.display());
                 }
 
                 // Create the file and write the default value "1" to it.
                 fs::write(path, "1")?;
-                println!("Created and initialized file with '1'.");
+                log::info!("Created and initialized file with '1'.");
 
                 // Since we just created it with "1", we can return 1.
                 Ok(1)

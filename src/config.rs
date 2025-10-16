@@ -3,8 +3,8 @@ use glob::glob;
 use inquire::MultiSelect;
 use std::collections::HashSet;
 use thiserror::Error;
-// TODO: test use confique::Config;
 use config::Config;
+// TODO: test use confique::Config;
 
 #[derive(Debug, Parser, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct Opts {
@@ -22,7 +22,7 @@ pub struct AppConfig {
     pub hostname: Option<String>,
     #[arg(short, long, default_value = "119")]
     pub port: u16,
-    #[arg(short, long, default_value = "./output/", value_hint = ValueHint::DirPath)]
+    #[arg(short, long, default_value = "./output", value_hint = ValueHint::DirPath)]
     pub output_dir: String,
 
     #[arg(long)]
@@ -31,8 +31,6 @@ pub struct AppConfig {
 
 pub fn read_config() -> Result<AppConfig, anyhow::Error> {
     let opts = Opts::parse();
-
-    // println!("{:#?}", opts);
 
     let base_config = match opts.app_config {
         Some(app_config) => app_config,
@@ -63,7 +61,7 @@ pub fn read_config() -> Result<AppConfig, anyhow::Error> {
 
     let app_config: AppConfig = config.try_deserialize()?;
 
-    return Ok(app_config);
+    Ok(app_config)
 }
 
 #[derive(Error, Debug)]
@@ -90,19 +88,17 @@ impl AppConfig {
     ) -> Result<Vec<String>, ConfigError> {
         if self.group_lists.is_none() {
             log::info!("No group_lists defined");
-            println!("No group_lists defined");
             let answer = MultiSelect::new("No groups selected. Select them now:", list_options)
                 .prompt()
                 .unwrap_or_else(|_| std::process::exit(0));
 
             if answer.is_empty() {
                 log::info!("empty selection");
-                println!("empty selectiond");
                 self.group_lists = None;
-                return Err(ConfigError::ListSelectionEmpty);
+                Err(ConfigError::ListSelectionEmpty)
             } else {
                 // TODO: save into a file
-                return Ok(answer);
+                Ok(answer)
             }
         } else {
             let mut group_lists = self.group_lists.clone().unwrap();
@@ -125,7 +121,7 @@ impl AppConfig {
                 );
             }
 
-            return Ok(valid);
+            Ok(valid)
         }
     }
 }
