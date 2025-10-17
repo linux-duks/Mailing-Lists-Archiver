@@ -1,9 +1,9 @@
 use clap::{Args, Parser, ValueHint};
+use config::Config;
 use glob::glob;
 use inquire::MultiSelect;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
-use config::Config;
 // TODO: test use confique::Config;
 
 #[derive(Debug, Parser, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
@@ -97,7 +97,19 @@ impl AppConfig {
                 self.group_lists = None;
                 Err(ConfigError::ListSelectionEmpty)
             } else {
-                // TODO: save into a file
+                // save selection to a file
+                let mut selected_lists = HashMap::new();
+                selected_lists.insert("group_lists", answer.clone());
+
+                let f = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open("nntp_config_selected_lists.yml")
+                    .expect("Couldn't open file");
+
+                serde_yaml::to_writer(f, &selected_lists).unwrap();
+
                 Ok(answer)
             }
         } else {
