@@ -230,16 +230,39 @@ impl Worker<'_> {
         Ok(())
     }
 
+    fn get_raw_article_by_number_retryable(
+        &mut self,
+        mail_num: isize,
+        max_retries: usize,
+    ) -> nntp::Result<Vec<String>> {
+        let mut attempts = 0;
+        let retry_delay_ms = 500;
+        loop {
+            match self.nntp_stream.raw_article_by_number(mail_num) {
+                Ok(raw_article) => {
+                    return Ok(raw_article);
+                }
+                Err(e) => {
+                    eprintln!("Failed reading article : {}", e);
+                    attempts += 1;
+                    if attempts >= max_retries {
+                        // Return the last error after max retries
+                        return Err(e);
+                    }
+                    println!("Retrying in {}ms...", retry_delay_ms);
+                    sleep(Duration::from_millis((retry_delay_ms * attempts) as u64));
+                }
+            }
+        }
+    }
+
     // read_new_mails checks for mails in an inclusive range between low and high
     fn read_new_mails(&mut self, group_name: String, low: usize, high: usize) -> nntp::Result<()> {
         // TODO: get mails by number or date (newnews command) ?
 
         // take the last_article_number or the "low"" result for the group
         for current_mail in low..=high {
-            match self
-                .nntp_stream
-                .raw_article_by_number(current_mail as isize)
-            {
+            match self.get_raw_article_by_number_retryable(current_mail as isize, 3) {
                 Ok(raw_article) => {
                     write_lines_file(
                         Path::new(
