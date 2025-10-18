@@ -1,9 +1,11 @@
+use crate::range_inputs;
 use clap::{Args, Parser, ValueHint};
 use config::Config;
 use glob::glob;
 use inquire::MultiSelect;
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
+
 // TODO: test use confique::Config;
 
 #[derive(Debug, Parser, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
@@ -27,6 +29,9 @@ pub struct AppConfig {
 
     #[arg(long)]
     group_lists: Option<Vec<String>>,
+    /// comma separated values, or dash separated ranges, like low-high
+    #[arg(long)]
+    article_range: Option<String>,
 }
 
 pub fn read_config() -> Result<AppConfig, anyhow::Error> {
@@ -134,6 +139,29 @@ impl AppConfig {
             }
 
             Ok(valid)
+        }
+    }
+
+    pub fn get_article_range(&self) -> Option<impl Iterator<Item = usize>> {
+        match &self.article_range {
+            Some(range_text) => {
+                // range and multiple lists
+                if self.group_lists.as_ref().is_some_and(|x| x.len() > 1) {
+                    log::warn!(
+                        "article_range used with group_lists with more than one list. This is likely an error"
+                    );
+                }
+                return match range_inputs::parse_sequence(range_text) {
+                    Ok(range) => Some(range),
+                    Err(e) => {
+                        log::error!("Invalid article_range input: {e}");
+                        None
+                    }
+                };
+            }
+            None => {
+                return None;
+            }
         }
     }
 }

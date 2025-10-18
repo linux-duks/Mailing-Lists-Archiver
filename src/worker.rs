@@ -150,9 +150,8 @@ impl Worker<'_> {
                     // this call may return an IO error,
                     match self.read_new_mails(
                         group_name.clone(),
-                        last_article_number,
+                        last_article_number.max(group.low as usize),
                         group.high as usize,
-                        group.low as usize,
                     ) {
                         Ok(_) => {
                             // if successfull, reschedule
@@ -183,17 +182,69 @@ impl Worker<'_> {
         Ok(())
     }
 
-    fn read_new_mails(
+    // run range does not keep track of lists, just run them once for the defined range
+    pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> io::Result<()> {
+        // let mut consummed = vec![];
+        let tasklist_guard = self.tasklist.read().unwrap();
+
+        // take all tasks, they wont repeat in this mode
+        let ready_tasks: Vec<(Instant, String)> = tasklist_guard
+            .iter()
+            .map(|(k, v)| (k.to_owned(), v.to_owned().clone()))
+            .collect();
+
+        // release the lock
+        drop(tasklist_guard);
+        // start processing items
+        // TODO: run this with more than one list ?
+        let (_, group_name) = ready_tasks.first().unwrap();
+        // for (k, group_name) in ready_tasks {
+        self.handle_group_range(group_name.clone(), range)?;
+        // consummed.push(k);
+        // }
+        return Ok(());
+    }
+
+    fn handle_group_range(
         &mut self,
         group_name: String,
-        last_article_number: usize,
-        high: usize,
-        low: usize,
+        range: impl Iterator<Item = usize>,
     ) -> io::Result<()> {
+        log::info!("Checking group : {group_name}");
+
+        match self.nntp_stream.group(&group_name) {
+            Ok(group) => {
+                log::info!("Will start collecting mails from range for group {group}",);
+                for article_number in range {
+                    // this call may return an IO error,
+                    match self.read_new_mails(group_name.clone(), article_number, article_number) {
+                        Ok(_) => {
+                            // if successfull, reschedule
+                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
+                        }
+                        Err(e) => {
+                            // if found a failure, reschedule and return error
+                            // TODO: check for connection errors here ?
+                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                            return Err(e);
+                        }
+                    };
+                }
+            }
+            Err(e) => {
+                log::error!("failure connecting to {group_name}, error: {e}");
+                self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+            }
+        }
+        Ok(())
+    }
+
+    // read_new_mails checks for mails in an inclusive range between low and high
+    fn read_new_mails(&mut self, group_name: String, low: usize, high: usize) -> io::Result<()> {
         // TODO: get mails by number or date (newnews command) ?
 
         // take the last_article_number or the "low"" result for the group
-        for current_mail in last_article_number.max(low)..high {
+        for current_mail in low..=high {
             match self
                 .nntp_stream
                 .raw_article_by_number(current_mail as isize)

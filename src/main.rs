@@ -39,8 +39,11 @@ fn main() -> Result<(), Error> {
 
     println!("made a selection of {} {:#?}", groups.len(), groups);
 
-    let mut w = worker::Worker::new(&mut nntp_stream, groups, app_config.output_dir);
-    w.run()?;
+    let mut w = worker::Worker::new(&mut nntp_stream, groups, app_config.output_dir.clone());
+    match app_config.get_article_range() {
+        Some(range) => w.run_range(range)?,
+        None => w.run()?,
+    }
 
     let _ = nntp_stream.quit();
     Ok(())
