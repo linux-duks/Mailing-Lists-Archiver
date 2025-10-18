@@ -290,8 +290,15 @@ impl Worker<'_> {
                 Err(e) => {
                     match e {
                         nntp::NNTPError::ArticleUnavailable => {
+                            append_line_to_file(
+                                Path::new(
+                                    format!("{}/{}/__errors", self.base_output_path, group_name)
+                                        .as_str(),
+                                ),
+                                format!("{current_mail},{e}").as_str(),
+                            )
+                            .unwrap();
                             log::warn!("Email with number {current_mail} unavailable");
-
                         }
                         _ => return Err(e),
                     }

@@ -1,11 +1,12 @@
 use std::{
     error::Error,
-    fs::{self, File},
+    fs::{self, File, OpenOptions},
     io::{self, LineWriter, Write},
     path::Path,
 };
+
 pub fn write_lines_file(path: &Path, lines: Vec<String>) -> io::Result<()> {
-    // Create or open a file for writing
+    // Create or open (truncate) a file for writing
     let file = File::create(path)?;
     let mut file = LineWriter::new(file);
 
@@ -17,6 +18,24 @@ pub fn write_lines_file(path: &Path, lines: Vec<String>) -> io::Result<()> {
     file.flush()?;
 
     log::debug!("file written {}", path.to_str().unwrap());
+
+    Ok(())
+}
+
+pub fn append_line_to_file(path: &Path, line: &str) -> io::Result<()> {
+    // Open the file in append mode, creating it if it doesn't exist
+    let mut file = OpenOptions::new()
+        .append(true) // Enable append mode
+        .create(true) // Create the file if it doesn't exist
+        .open(path)?; // Open the file and handle potential errors
+
+    // Write the line to the file
+    writeln!(file, "{}", line)?;
+
+    log::debug!(
+        "Line appended successfully to {}",
+        path.to_str().unwrap_or("")
+    );
 
     Ok(())
 }
