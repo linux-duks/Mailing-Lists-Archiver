@@ -1,11 +1,12 @@
+use crate::errors;
 use crate::file_utils::*;
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
 use std::{
     collections::BTreeMap,
-    io,
     path::Path,
     sync::{Arc, RwLock},
+    thread::sleep,
     time::{Duration, Instant},
     vec,
 };
@@ -51,11 +52,12 @@ impl Worker<'_> {
         }
     }
 
-    pub fn run(&mut self) -> io::Result<()> {
+    pub fn run(&mut self) -> crate::Result<()> {
         loop {
+            // TODO: fix this loop
             if self.needs_reconnection {
                 if self.reconnection_attempts_left < 1 {
-                    return Err(io::Error::other("Reconnection limit reached"));
+                    return Err(errors::Error::NNTPReconnectionError);
                 }
                 self.reconnection_attempts_left -= 1;
 
@@ -68,7 +70,7 @@ impl Worker<'_> {
                     Ok(_) => self.needs_reconnection = false,
                     Err(e) => {
                         log::error!("attempted reconnection and failed with error {e}");
-                        return Err(e);
+                        return Err(errors::Error::NNTP(e));
                     }
                 }
             } else {
@@ -94,24 +96,14 @@ impl Worker<'_> {
                     let handler_result = self.handle_group(group_name.clone());
                     consummed.push(k);
                     if handler_result.is_err() {
-                        match handler_result.as_ref().err().unwrap().kind() {
-                            io::ErrorKind::TimedOut
-                            | io::ErrorKind::ConnectionAborted
-                            | io::ErrorKind::ConnectionReset => {
-                                self.needs_reconnection = true;
-                                break;
-                            }
-                            _ => {
-                                log::error!(
-                                    "Unkown error returned: {}",
-                                    handler_result.err().unwrap()
-                                );
-
-                                // TODO: check error types
-                                self.needs_reconnection = true;
-                                break;
-                                // return Err(handler_result.err().unwrap());
-                            }
+                        if nntp::errors::check_network_error(handler_result.err().unwrap()) {
+                            self.needs_reconnection = true;
+                            break;
+                        } else {
+                            // TODO: check error types
+                            self.needs_reconnection = true;
+                            break;
+                            // return Err(handler_result.err().unwrap());
                         }
                     }
                 }
@@ -123,7 +115,7 @@ impl Worker<'_> {
         }
     }
 
-    fn handle_group(&mut self, group_name: String) -> io::Result<()> {
+    fn handle_group(&mut self, group_name: String) -> nntp::Result<()> {
         let last_article_number = read_number_or_create(Path::new(
             format!(
                 "{}/{}/__last_article_number",
@@ -182,7 +174,7 @@ impl Worker<'_> {
     }
 
     // run range does not keep track of lists, just run them once for the defined range
-    pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> io::Result<()> {
+    pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> nntp::Result<()> {
         // let mut consummed = vec![];
         let tasklist_guard = self.tasklist.read().unwrap();
 
@@ -208,7 +200,7 @@ impl Worker<'_> {
         &mut self,
         group_name: String,
         range: impl Iterator<Item = usize>,
-    ) -> io::Result<()> {
+    ) -> nntp::Result<()> {
         log::info!("Checking group : {group_name}");
 
         match self.nntp_stream.group(&group_name) {
@@ -239,7 +231,7 @@ impl Worker<'_> {
     }
 
     // read_new_mails checks for mails in an inclusive range between low and high
-    fn read_new_mails(&mut self, group_name: String, low: usize, high: usize) -> io::Result<()> {
+    fn read_new_mails(&mut self, group_name: String, low: usize, high: usize) -> nntp::Result<()> {
         // TODO: get mails by number or date (newnews command) ?
 
         // take the last_article_number or the "low"" result for the group
@@ -273,8 +265,15 @@ impl Worker<'_> {
                     .unwrap();
                 }
                 Err(e) => {
-                    // TODO: should the program singnal a need to reconnect here or upstream ?
-                    return Err(e);
+                    match e {
+                        nntp::NNTPError::ArticleUnavailable => {
+                            log::warn!("Email with number {current_mail} unavailable");
+
+                        }
+                        _ => return Err(e),
+                    }
+                    // // TODO: should the program singnal a need to reconnect here or upstream ?
+                    // return Err(e);
                 }
             }
 

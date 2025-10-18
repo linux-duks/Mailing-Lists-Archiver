@@ -3,14 +3,15 @@
 use env_logger::Builder;
 use log::{self, Level, LevelFilter, log_enabled};
 use nntp::NNTPStream;
-use std::io::Error;
 
 mod config;
+mod errors;
+mod file_utils;
 mod range_inputs;
 mod worker;
-mod file_utils;
+use errors::Result;
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
     Builder::new()
         .filter(None, LevelFilter::Info) // Set default level to Info
         .init();
