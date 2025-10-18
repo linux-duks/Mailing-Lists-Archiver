@@ -1,3 +1,5 @@
+#![allow(clippy::needless_return)]
+
 use env_logger::Builder;
 use log::{self, Level, LevelFilter, log_enabled};
 use nntp::NNTPStream;
@@ -6,6 +8,7 @@ use std::io::Error;
 mod config;
 mod range_inputs;
 mod worker;
+mod file_utils;
 
 fn main() -> Result<(), Error> {
     Builder::new()

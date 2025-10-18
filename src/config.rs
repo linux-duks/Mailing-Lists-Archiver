@@ -103,6 +103,7 @@ impl AppConfig {
                 Err(ConfigError::ListSelectionEmpty)
             } else {
                 // save selection to a file
+                // TODO: move fo file_utils
                 let mut selected_lists = HashMap::new();
                 selected_lists.insert("group_lists", answer.clone());
 
