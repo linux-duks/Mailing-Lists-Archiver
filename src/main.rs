@@ -1,11 +1,13 @@
 use env_logger::Builder;
 use log::{self, Level, LevelFilter, log_enabled};
 use nntp::NNTPStream;
+use std::io::Error;
 
 mod config;
+mod range_inputs;
 mod worker;
 
-fn main() {
+fn main() -> Result<(), Error> {
     Builder::new()
         .filter(None, LevelFilter::Info) // Set default level to Info
         .init();
@@ -37,7 +39,9 @@ fn main() {
 
     println!("made a selection of {} {:#?}", groups.len(), groups);
 
-    worker::Worker::new(&mut nntp_stream, groups, app_config.output_dir).run();
+    let mut w = worker::Worker::new(&mut nntp_stream, groups, app_config.output_dir);
+    w.run()?;
 
     let _ = nntp_stream.quit();
+    Ok(())
 }

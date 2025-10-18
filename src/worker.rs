@@ -14,13 +14,16 @@ use std::{
 // intervals in seconds
 const INTERVAL_AFTER_SUCCESS: usize = 60 * 60; // 1h
 const INTERVAL_AFTER_NO_NEWS: usize = 60 * 60 * 2; // 2H
-const INTERVAL_AFTER_FAILURE: usize = 60 * 60 * 12;
+const INTERVAL_AFTER_FAILURE: usize = 60 * 30; // 30min
 
 pub struct Worker<'a> {
     // TODO: convert to trait
     nntp_stream: &'a mut NNTPStream,
     tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
     base_output_path: String,
+
+    reconnection_attempts_left: usize,
+    needs_reconnection: bool,
 }
 
 impl Worker<'_> {
@@ -42,16 +45,42 @@ impl Worker<'_> {
             nntp_stream,
             tasklist: Arc::new(RwLock::new(tasklist)),
             base_output_path,
+
+            // TODO: make this replenish after a while without reconnection issues
+            reconnection_attempts_left: 3,
+            needs_reconnection: false,
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> io::Result<()> {
         loop {
-            std::thread::sleep(Duration::from_secs(1));
+            if self.needs_reconnection {
+                if self.reconnection_attempts_left < 1 {
+                    return Err(io::Error::other("Reconnection limit reached"));
+                }
+                self.reconnection_attempts_left -= 1;
+
+                log::debug!("Will attempt a reconnection soon");
+                // wait  a minute before trying to reconnect
+                std::thread::sleep(Duration::from_secs(60));
+
+                log::info!("Will attempt a reconnection");
+                match self.nntp_stream.re_connect() {
+                    Ok(_) => self.needs_reconnection = false,
+                    Err(e) => {
+                        log::error!("attempted reconnection and failed with error {e}");
+                        return Err(e);
+                    }
+                }
+            } else {
+                // interval between checks to task list
+                std::thread::sleep(Duration::from_secs(5));
+            }
             let mut consummed = vec![];
             {
                 let tasklist_guard = self.tasklist.read().unwrap();
 
+                // filter only tasks ready to be run
                 let ready_tasks: Vec<(Instant, String)> = tasklist_guard
                     .iter()
                     .take_while(|(k, _)| **k <= Instant::now())
@@ -63,8 +92,29 @@ impl Worker<'_> {
 
                 // start processing items
                 for (k, group_name) in ready_tasks {
-                    self.handle_group(group_name.clone());
+                    let handler_result = self.handle_group(group_name.clone());
                     consummed.push(k);
+                    if handler_result.is_err() {
+                        match handler_result.as_ref().err().unwrap().kind() {
+                            io::ErrorKind::TimedOut
+                            | io::ErrorKind::ConnectionAborted
+                            | io::ErrorKind::ConnectionReset => {
+                                self.needs_reconnection = true;
+                                break;
+                            }
+                            _ => {
+                                log::error!(
+                                    "Unkown error returned: {}",
+                                    handler_result.err().unwrap()
+                                );
+
+                                // TODO: check error types
+                                self.needs_reconnection = true;
+                                break;
+                                // return Err(handler_result.err().unwrap());
+                            }
+                        }
+                    }
                 }
             }
             // removed from
@@ -74,7 +124,7 @@ impl Worker<'_> {
         }
     }
 
-    fn handle_group(&mut self, group_name: String) {
+    fn handle_group(&mut self, group_name: String) -> io::Result<()> {
         let last_article_number = read_number_or_create(Path::new(
             format!(
                 "{}/{}/__last_article_number",
@@ -97,12 +147,24 @@ impl Worker<'_> {
 
                 if last_article_number < group.high as usize {
                     log::info!("Reading emails for group : {group_name}.");
-                    self.read_new_mails(
+                    // this call may return an IO error,
+                    match self.read_new_mails(
                         group_name.clone(),
                         last_article_number,
                         group.high as usize,
                         group.low as usize,
-                    );
+                    ) {
+                        Ok(_) => {
+                            // if successfull, reschedule
+                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
+                        }
+                        Err(e) => {
+                            // if found a failure, reschedule and return error
+                            // TODO: check for connection errors here ?
+                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                            return Err(e);
+                        }
+                    };
                     // reschedule
                     self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
                 } else {
@@ -118,6 +180,7 @@ impl Worker<'_> {
                 self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
             }
         }
+        Ok(())
     }
 
     fn read_new_mails(
@@ -126,7 +189,7 @@ impl Worker<'_> {
         last_article_number: usize,
         high: usize,
         low: usize,
-    ) {
+    ) -> io::Result<()> {
         // TODO: get mails by number or date (newnews command) ?
 
         // take the last_article_number or the "low"" result for the group
@@ -159,7 +222,10 @@ impl Worker<'_> {
                     )
                     .unwrap();
                 }
-                Err(e) => panic!("Error reading mail {}", e),
+                Err(e) => {
+                    // TODO: should the program singnal a need to reconnect here or upstream ?
+                    return Err(e);
+                }
             }
 
             log::info!(
@@ -170,6 +236,7 @@ impl Worker<'_> {
             );
             std::thread::sleep(Duration::from_millis(10));
         }
+        return Ok(());
     }
 
     fn reschedule_group(&mut self, group_name: String, seconds_next_check: usize) {
