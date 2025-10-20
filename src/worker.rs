@@ -174,7 +174,7 @@ impl Worker<'_> {
     }
 
     // run range does not keep track of lists, just run them once for the defined range
-    pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> nntp::Result<()> {
+    pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> crate::Result<()> {
         // let mut consummed = vec![];
         let tasklist_guard = self.tasklist.read().unwrap();
 
