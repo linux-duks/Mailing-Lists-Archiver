@@ -1,8 +1,7 @@
 #![allow(clippy::needless_return)]
 
 use env_logger::Builder;
-use log::{self, Level, LevelFilter, log_enabled};
-use nntp::NNTPStream;
+use log::{self, LevelFilter};
 
 mod config;
 mod errors;
@@ -19,36 +18,23 @@ fn main() -> Result<()> {
     let mut app_config = config::read_config().unwrap();
 
     let mut nntp_stream =
-        match NNTPStream::connect((app_config.hostname.clone().unwrap(), app_config.port)) {
-            Ok(stream) => stream,
-            Err(e) => panic!("{}", e),
-        };
-
-    match nntp_stream.capabilities() {
-        Ok(lines) => {
-            if log_enabled!(Level::Debug) {
-                log::debug!("server capabilities");
-                for line in lines.iter() {
-                    log::debug!("{}", line);
-                }
-            }
-        }
-        Err(e) => log::error!("Failed checking server capabilities: {}", e),
-    }
+        worker::connect_to_nntp(app_config.hostname.clone().unwrap(), app_config.port)?;
 
     let list_options = nntp_stream.list().unwrap();
     let groups = app_config
         .get_group_lists(list_options.iter().map(move |an| an.clone().name).collect())
         .unwrap();
 
+    // close initial connection to nntp server
+    let _ = nntp_stream.quit();
+
     println!("made a selection of {} {:#?}", groups.len(), groups);
 
-    let mut w = worker::Worker::new(&mut nntp_stream, groups, app_config.output_dir.clone());
+    let mut w = worker::Worker::new(&app_config, groups);
     match app_config.get_article_range() {
-        Some(range) => w.run_range(range)?,
-        None => w.run()?,
-    }
+        Some(range) => w.run_range(range),
+        None => w.run(),
+    }?;
 
-    let _ = nntp_stream.quit();
     Ok(())
 }

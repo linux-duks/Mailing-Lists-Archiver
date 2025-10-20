@@ -1,3 +1,4 @@
+use crate::config::AppConfig;
 use crate::errors;
 use crate::file_utils::*;
 use log::{Level, log_enabled};
@@ -16,9 +17,32 @@ const INTERVAL_AFTER_SUCCESS: usize = 60 * 60; // 1h
 const INTERVAL_AFTER_NO_NEWS: usize = 60 * 60 * 2; // 2H
 const INTERVAL_AFTER_FAILURE: usize = 60 * 30; // 30min
 
-pub struct Worker<'a> {
+pub fn connect_to_nntp(hostname: String, port: u16) -> nntp::Result<NNTPStream> {
+    let mut nntp_stream = match NNTPStream::connect((hostname, port)) {
+        Ok(stream) => stream,
+        Err(e) => {
+            return Err(e);
+        }
+    };
+
+    match nntp_stream.capabilities() {
+        Ok(lines) => {
+            if log_enabled!(Level::Debug) {
+                log::debug!("server capabilities");
+                for line in lines.iter() {
+                    log::debug!("{}", line);
+                }
+            }
+        }
+        Err(e) => log::error!("Failed checking server capabilities: {}", e),
+    }
+    return Ok(nntp_stream);
+}
+
+pub struct Worker {
+    // app_config: AppConfig,
     // TODO: convert to trait
-    nntp_stream: &'a mut NNTPStream,
+    nntp_stream: NNTPStream,
     tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
     base_output_path: String,
 
@@ -26,12 +50,11 @@ pub struct Worker<'a> {
     needs_reconnection: bool,
 }
 
-impl Worker<'_> {
-    pub fn new(
-        nntp_stream: &mut NNTPStream,
-        groups: Vec<String>,
-        base_output_path: String,
-    ) -> Worker {
+impl Worker {
+    pub fn new(app_config: &AppConfig, groups: Vec<String>) -> Worker {
+        let nntp_stream =
+            connect_to_nntp(app_config.hostname.clone().unwrap(), app_config.port).unwrap();
+
         let mut tasklist: BTreeMap<Instant, String> = BTreeMap::new();
 
         // Schedule all groups for check in the next second
@@ -44,7 +67,7 @@ impl Worker<'_> {
         Worker {
             nntp_stream,
             tasklist: Arc::new(RwLock::new(tasklist)),
-            base_output_path,
+            base_output_path: app_config.output_dir.clone(),
 
             // TODO: make this replenish after a while without reconnection issues
             reconnection_attempts_left: 3,
