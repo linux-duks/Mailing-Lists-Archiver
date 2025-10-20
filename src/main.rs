@@ -1,6 +1,6 @@
 #![allow(clippy::needless_return)]
 
-use env_logger::Builder;
+use env_logger::{Builder, Env};
 use log::{self, LevelFilter};
 
 mod config;
@@ -11,9 +11,11 @@ mod worker;
 use errors::Result;
 
 fn main() -> Result<()> {
-    Builder::new()
-        .filter(None, LevelFilter::Info) // Set default level to Info
-        .init();
+    let env = Env::default()
+        .filter_or("RUST_LOG", "info")
+        .write_style_or("MY_LOG_STYLE", "always");
+
+    env_logger::init_from_env(env);
 
     let mut app_config = config::read_config().unwrap();
 
