@@ -18,8 +18,11 @@ fn main() -> Result<()> {
 
     let mut app_config = config::read_config().unwrap();
 
-    let mut nntp_stream =
-        worker::connect_to_nntp(app_config.hostname.clone().unwrap(), app_config.port)?;
+    let mut nntp_stream = worker::connect_to_nntp(format!(
+        "{}:{}",
+        app_config.hostname.clone().unwrap(),
+        app_config.port
+    ))?;
 
     let list_options = nntp_stream.list().unwrap();
     let groups = app_config

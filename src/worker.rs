@@ -17,8 +17,8 @@ const INTERVAL_AFTER_SUCCESS: usize = 60 * 60; // 1h
 const INTERVAL_AFTER_NO_NEWS: usize = 60 * 60 * 2; // 2H
 const INTERVAL_AFTER_FAILURE: usize = 60 * 30; // 30min
 
-pub fn connect_to_nntp(hostname: String, port: u16) -> nntp::Result<NNTPStream> {
-    let mut nntp_stream = match NNTPStream::connect((hostname, port)) {
+pub fn connect_to_nntp(address: String) -> nntp::Result<NNTPStream> {
+    let mut nntp_stream = match NNTPStream::connect(address) {
         Ok(stream) => stream,
         Err(e) => {
             return Err(e);
@@ -45,15 +45,17 @@ pub struct Worker {
     nntp_stream: NNTPStream,
     tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
     base_output_path: String,
-
-    reconnection_attempts_left: usize,
     needs_reconnection: bool,
 }
 
 impl Worker {
     pub fn new(app_config: &AppConfig, groups: Vec<String>) -> Worker {
-        let nntp_stream =
-            connect_to_nntp(app_config.hostname.clone().unwrap(), app_config.port).unwrap();
+        let nntp_stream = connect_to_nntp(format!(
+            "{}:{}",
+            app_config.hostname.clone().unwrap(),
+            app_config.port
+        ))
+        .unwrap();
 
         let mut tasklist: BTreeMap<Instant, String> = BTreeMap::new();
 
@@ -68,22 +70,13 @@ impl Worker {
             nntp_stream,
             tasklist: Arc::new(RwLock::new(tasklist)),
             base_output_path: app_config.output_dir.clone(),
-
-            // TODO: make this replenish after a while without reconnection issues
-            reconnection_attempts_left: 3,
             needs_reconnection: false,
         }
     }
 
     pub fn run(&mut self) -> crate::Result<()> {
         loop {
-            // TODO: fix this loop
             if self.needs_reconnection {
-                if self.reconnection_attempts_left < 1 {
-                    return Err(errors::Error::NNTPReconnectionError);
-                }
-                self.reconnection_attempts_left -= 1;
-
                 log::debug!("Will attempt a reconnection soon");
                 // wait  a minute before trying to reconnect
                 std::thread::sleep(Duration::from_secs(60));
