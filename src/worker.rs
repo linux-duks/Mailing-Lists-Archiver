@@ -259,21 +259,23 @@ impl Worker {
         max_retries: usize,
     ) -> nntp::Result<Vec<String>> {
         let mut attempts = 0;
-        let retry_delay_ms = 500;
+        let retry_delay_ms = 600;
         loop {
             match self.nntp_stream.raw_article_by_number(mail_num) {
                 Ok(raw_article) => {
                     return Ok(raw_article);
                 }
                 Err(e) => {
-                    eprintln!("Failed reading article : {}", e);
+                    log::warn!("Failed reading article : {}", e);
                     attempts += 1;
-                    if attempts >= max_retries {
+                    if attempts > max_retries {
                         // Return the last error after max retries
                         return Err(e);
                     }
-                    println!("Retrying in {}ms...", retry_delay_ms);
-                    sleep(Duration::from_millis((retry_delay_ms * attempts) as u64));
+                    log::warn!("Retrying in {}ms...", (retry_delay_ms * (attempts + 1)));
+                    sleep(Duration::from_millis(
+                        (retry_delay_ms * (attempts + 1)) as u64,
+                    ));
                 }
             }
         }
@@ -331,10 +333,10 @@ impl Worker {
             }
 
             log::info!(
-                "{group_name} {}/{} ({}%)",
+                "{group_name} {}/{} ({:.2}%)",
                 current_mail,
                 high,
-                (current_mail as f64 / high as f64 * 100.0) as usize
+                (current_mail as f64 / high as f64 * 100.0)
             );
             std::thread::sleep(Duration::from_millis(10));
         }

@@ -1,7 +1,6 @@
 #![allow(clippy::needless_return)]
 
-use env_logger::{Builder, Env};
-use log::{self, LevelFilter};
+use env_logger::Env;
 
 mod config;
 mod errors;
