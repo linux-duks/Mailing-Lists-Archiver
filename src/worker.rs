@@ -1,8 +1,9 @@
-use crate::config::AppConfig;
 use crate::errors;
 use crate::file_utils::*;
+use crossbeam_channel::bounded;
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
+use std::thread;
 use std::{
     collections::BTreeMap,
     path::Path,
@@ -40,41 +41,34 @@ pub fn connect_to_nntp(address: String) -> nntp::Result<NNTPStream> {
 }
 
 pub struct Worker {
-    // app_config: AppConfig,
-    // TODO: convert to trait
     nntp_stream: NNTPStream,
-    tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
+    hostname: String,
+    port: u16,
     base_output_path: String,
     needs_reconnection: bool,
+    receiver: crossbeam_channel::Receiver<String>,
 }
 
 impl Worker {
-    pub fn new(app_config: &AppConfig, groups: Vec<String>) -> Worker {
-        let nntp_stream = connect_to_nntp(format!(
-            "{}:{}",
-            app_config.hostname.clone().unwrap(),
-            app_config.port
-        ))
-        .unwrap();
+    pub fn new(
+        hostname: String,
+        port: u16,
+        base_output_path: String,
+        receiver: crossbeam_channel::Receiver<String>,
+    ) -> Worker {
+        let nntp_stream = connect_to_nntp(format!("{}:{}", hostname, port)).unwrap();
 
-        let mut tasklist: BTreeMap<Instant, String> = BTreeMap::new();
-
-        // Schedule all groups for check in the next second
-        for group in groups {
-            tasklist.insert(
-                Instant::now().checked_add(Duration::from_secs(1)).unwrap(),
-                group,
-            );
-        }
         Worker {
+            hostname,
+            port,
+            base_output_path,
             nntp_stream,
-            tasklist: Arc::new(RwLock::new(tasklist)),
-            base_output_path: app_config.output_dir.clone(),
             needs_reconnection: false,
+            receiver,
         }
     }
 
-    pub fn run(&mut self) -> crate::Result<()> {
+    pub fn comsume(&mut self) -> crate::Result<()> {
         loop {
             if self.needs_reconnection {
                 log::debug!("Will attempt a reconnection soon");
@@ -93,42 +87,22 @@ impl Worker {
                 // interval between checks to task list
                 std::thread::sleep(Duration::from_secs(5));
             }
-            let mut consummed = vec![];
-            {
-                let tasklist_guard = self.tasklist.read().unwrap();
-
-                // filter only tasks ready to be run
-                let ready_tasks: Vec<(Instant, String)> = tasklist_guard
-                    .iter()
-                    .take_while(|(k, _)| **k <= Instant::now())
-                    .map(|(k, v)| (k.to_owned(), v.to_owned().clone()))
-                    .collect();
-
-                // release the lock
-                drop(tasklist_guard);
-
-                // start processing items
-                for (k, group_name) in ready_tasks {
-                    let handler_result = self.handle_group(group_name.clone());
-                    consummed.push(k);
-                    if handler_result.is_err() {
-                        if nntp::errors::check_network_error(handler_result.err().unwrap()) {
-                            self.needs_reconnection = true;
-                            break;
-                        } else {
-                            // TODO: check error types
-                            self.needs_reconnection = true;
-                            break;
-                            // return Err(handler_result.err().unwrap());
-                        }
-                    }
+            let group_name = self.receiver.recv().unwrap();
+            let handler_result = self.handle_group(group_name.clone());
+            if handler_result.is_err() {
+                if nntp::errors::check_network_error(handler_result.as_ref().err().unwrap()) {
+                    self.needs_reconnection = true;
+                    // break;
+                } else {
+                    // TODO: check error types
+                    // self.needs_reconnection = true;
+                    // break;
+                    //
+                    return Err(errors::Error::NNTP(handler_result.unwrap_err()));
                 }
             }
-            // removed from
-            for k in consummed {
-                self.tasklist.write().unwrap().remove(&k);
-            }
         }
+        // return Ok(());
     }
 
     fn handle_group(&mut self, group_name: String) -> nntp::Result<()> {
@@ -162,54 +136,31 @@ impl Worker {
                     ) {
                         Ok(_) => {
                             // if successfull, reschedule
-                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
+                            // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
                         }
                         Err(e) => {
                             // if found a failure, reschedule and return error
                             // TODO: check for connection errors here ?
-                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                            // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
                             return Err(e);
                         }
                     };
                     // reschedule
-                    self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
+                    // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
                 } else {
                     log::info!(
                         "Checking group : {group_name}. Local max ID: {last_article_number}"
                     );
                     // no new emails, reschedule for next minute
-                    self.reschedule_group(group_name.clone(), INTERVAL_AFTER_NO_NEWS);
+                    // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_NO_NEWS);
                 }
             }
             Err(e) => {
                 log::error!("failure connecting to {group_name}, error: {e}");
-                self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
             }
         }
         Ok(())
-    }
-
-    // run range does not keep track of lists, just run them once for the defined range
-    pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> crate::Result<()> {
-        // let mut consummed = vec![];
-        let tasklist_guard = self.tasklist.read().unwrap();
-
-        // take all tasks, they wont repeat in this mode
-        let ready_tasks: Vec<(Instant, String)> = tasklist_guard
-            .iter()
-            .map(|(k, v)| (k.to_owned(), v.to_owned().clone()))
-            .collect();
-
-        // release the lock
-        drop(tasklist_guard);
-        // start processing items
-        // TODO: run this with more than one list ?
-        let (_, group_name) = ready_tasks.first().unwrap();
-        // for (k, group_name) in ready_tasks {
-        self.handle_group_range(group_name.clone(), range)?;
-        // consummed.push(k);
-        // }
-        return Ok(());
     }
 
     fn handle_group_range(
@@ -227,12 +178,12 @@ impl Worker {
                     match self.read_new_mails(group_name.clone(), article_number, article_number) {
                         Ok(_) => {
                             // if successfull, reschedule
-                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
+                            // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
                         }
                         Err(e) => {
                             // if found a failure, reschedule and return error
                             // TODO: check for connection errors here ?
-                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                            // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
                             return Err(e);
                         }
                     };
@@ -240,38 +191,10 @@ impl Worker {
             }
             Err(e) => {
                 log::error!("failure connecting to {group_name}, error: {e}");
-                self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
             }
         }
         Ok(())
-    }
-
-    fn get_raw_article_by_number_retryable(
-        &mut self,
-        mail_num: isize,
-        max_retries: usize,
-    ) -> nntp::Result<Vec<String>> {
-        let mut attempts = 0;
-        let retry_delay_ms = 600;
-        loop {
-            match self.nntp_stream.raw_article_by_number(mail_num) {
-                Ok(raw_article) => {
-                    return Ok(raw_article);
-                }
-                Err(e) => {
-                    log::warn!("Failed reading article : {}", e);
-                    attempts += 1;
-                    if attempts > max_retries {
-                        // Return the last error after max retries
-                        return Err(e);
-                    }
-                    log::warn!("Retrying in {}ms...", (retry_delay_ms * (attempts + 1)));
-                    sleep(Duration::from_millis(
-                        (retry_delay_ms * (attempts + 1)) as u64,
-                    ));
-                }
-            }
-        }
     }
 
     // read_new_mails checks for mails in an inclusive range between low and high
@@ -333,6 +256,169 @@ impl Worker {
             );
             std::thread::sleep(Duration::from_millis(10));
         }
+        return Ok(());
+    }
+
+    fn get_raw_article_by_number_retryable(
+        &mut self,
+        mail_num: isize,
+        max_retries: usize,
+    ) -> nntp::Result<Vec<String>> {
+        let mut attempts = 0;
+        let retry_delay_ms = 600;
+        loop {
+            match self.nntp_stream.raw_article_by_number(mail_num) {
+                Ok(raw_article) => {
+                    return Ok(raw_article);
+                }
+                Err(e) => {
+                    log::warn!("Failed reading article : {}", e);
+                    attempts += 1;
+                    if attempts > max_retries {
+                        // Return the last error after max retries
+                        return Err(e);
+                    }
+                    log::warn!("Retrying in {}ms...", (retry_delay_ms * (attempts + 1)));
+                    sleep(Duration::from_millis(
+                        (retry_delay_ms * (attempts + 1)) as u64,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+pub struct Scheduler {
+    // nntp_stream: NNTPStream,
+    hostname: String,
+    port: u16,
+    base_output_path: String,
+    tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
+    // base_output_path: String,
+    // needs_reconnection: bool,
+    sender: crossbeam_channel::Sender<String>,
+    receiver: crossbeam_channel::Receiver<String>,
+}
+
+const NTHREADS: u32 = 3;
+
+impl Scheduler {
+    pub fn new(
+        hostname: String,
+        port: u16,
+        base_output_path: String,
+        groups: Vec<String>,
+    ) -> Scheduler {
+        let mut tasklist: BTreeMap<Instant, String> = BTreeMap::new();
+
+        // Schedule all groups for check in the next second
+        for group in groups {
+            tasklist.insert(
+                Instant::now().checked_add(Duration::from_secs(1)).unwrap(),
+                group,
+            );
+        }
+
+        let (sender, receiver) = bounded::<String>(1);
+
+        Scheduler {
+            hostname,
+            port,
+            base_output_path,
+            tasklist: Arc::new(RwLock::new(tasklist)),
+            sender,
+            receiver,
+        }
+    }
+
+    pub fn run(&mut self) -> crate::Result<()> {
+        for i in 0..NTHREADS {
+            log::info!("Stating worker thread {i}");
+
+            let receiver = self.receiver.clone();
+            let mut worker = Worker::new(
+                self.hostname.clone(),
+                self.port,
+                self.base_output_path.clone(),
+                receiver,
+            );
+            // Spin up another thread
+            thread::spawn(move || {
+                loop {
+                    match worker.comsume() {
+                        Ok(_) => {
+                            log::info!("Consumme finished");
+                            break;
+                        }
+                        Err(err) => {
+                            // TODO: use this to reschedule
+                            log::warn!("Consumme returned an error : {err}");
+                        }
+                    };
+                }
+            });
+        }
+
+        loop {
+            // interval between checks to task list
+            std::thread::sleep(Duration::from_secs(5));
+            let mut consummed = vec![];
+            {
+                let tasklist_guard = self.tasklist.read().unwrap();
+
+                // filter only tasks ready to be run
+                let ready_tasks: Vec<(Instant, String)> = tasklist_guard
+                    .iter()
+                    .take_while(|(k, _)| **k <= Instant::now())
+                    .map(|(k, v)| (k.to_owned(), v.to_owned().clone()))
+                    .collect();
+
+                // release the lock
+                drop(tasklist_guard);
+
+                // start processing items
+                for (k, group_name) in ready_tasks {
+                    self.sender.send(group_name).unwrap();
+                    consummed.push(k);
+                }
+            }
+            // removed from
+            for k in consummed {
+                self.tasklist.write().unwrap().remove(&k);
+            }
+        }
+        // // close initial connection to nntp server
+        // let _ = self.nntp_stream.quit();
+    }
+
+    // run range does not keep track of lists, just run them once for the defined range
+    pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> crate::Result<()> {
+        // let mut consummed = vec![];
+        let tasklist_guard = self.tasklist.read().unwrap();
+
+        // take all tasks, they wont repeat in this mode
+        let ready_tasks: Vec<(Instant, String)> = tasklist_guard
+            .iter()
+            .map(|(k, v)| (k.to_owned(), v.to_owned().clone()))
+            .collect();
+
+        // release the lock
+        drop(tasklist_guard);
+
+        let receiver = self.receiver.clone();
+        let mut worker = Worker::new(
+            self.hostname.clone(),
+            self.port,
+            self.base_output_path.clone(),
+            receiver,
+        );
+        // start processing items
+        // TODO: run this with more than one list ?
+        let (_, group_name) = ready_tasks.first().unwrap();
+        // for (k, group_name) in ready_tasks {
+        worker.handle_group_range(group_name.clone(), range)?;
+        // consummed.push(k);
+        // }
         return Ok(());
     }
 

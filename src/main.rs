@@ -34,7 +34,12 @@ fn main() -> Result<()> {
 
     println!("made a selection of {} {:#?}", groups.len(), groups);
 
-    let mut w = worker::Worker::new(&app_config, groups);
+    let mut w = worker::Scheduler::new(
+        app_config.hostname.clone().unwrap(),
+        app_config.port,
+        app_config.output_dir.clone(),
+        groups,
+    );
     match app_config.get_article_range() {
         Some(range) => w.run_range(range),
         None => w.run(),
