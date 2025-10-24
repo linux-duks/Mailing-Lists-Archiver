@@ -1,4 +1,4 @@
-use std::io::{self, ErrorKind};
+use std::io::{self};
 use std::result;
 use thiserror::Error;
 

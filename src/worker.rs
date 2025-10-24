@@ -1,6 +1,7 @@
 use crate::errors;
 use crate::file_utils::*;
-use crossbeam_channel::{TryRecvError, bounded};
+use crossbeam_channel::{TryRecvError, bounded, unbounded};
+use log::warn;
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
 use std::thread;
@@ -17,6 +18,7 @@ use std::{
 const INTERVAL_AFTER_SUCCESS: usize = 60 * 60; // 1h
 const INTERVAL_AFTER_NO_NEWS: usize = 60 * 60 * 2; // 2H
 const INTERVAL_AFTER_FAILURE: usize = 60 * 30; // 30min
+const NTHREADS: u32 = 3;
 
 pub fn connect_to_nntp(address: String) -> nntp::Result<NNTPStream> {
     let mut nntp_stream = match NNTPStream::connect(address) {
@@ -92,22 +94,23 @@ impl Worker {
                 // interval between checks to task list
                 std::thread::sleep(Duration::from_secs(5));
             }
+            log::info!("Worker Reading new group from channel");
             let group_name = self.receiver.recv().unwrap();
             let handler_result = self.handle_group(group_name.clone());
             if handler_result.is_err() {
-                if nntp::errors::check_network_error(handler_result.as_ref().err().unwrap()) {
+                let err = handler_result.unwrap_err();
+                if nntp::errors::check_network_error(&err) {
                     self.needs_reconnection = true;
-                    // break;
                 } else {
-                    // TODO: check error types
-                    // self.needs_reconnection = true;
+                    log::error!(
+                        "Consummer failed while processing {group_name} with error {}",
+                        &err
+                    );
                     // break;
-                    //
-                    return Err(errors::Error::NNTP(handler_result.unwrap_err()));
+                    return Err(errors::Error::NNTP(err));
                 }
             }
         }
-        // return Ok(());
     }
 
     fn handle_group(&mut self, group_name: String) -> nntp::Result<()> {
@@ -308,20 +311,17 @@ impl Worker {
     }
 }
 
-enum WorkerGroupResult {
+pub enum WorkerGroupResult {
     Ok(String),
     Failed(String),
     NoNews(String),
 }
 
 pub struct Scheduler {
-    // nntp_stream: NNTPStream,
     hostname: String,
     port: u16,
     base_output_path: String,
     tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
-    // base_output_path: String,
-    // needs_reconnection: bool,
     task_channel: (
         crossbeam_channel::Sender<String>,
         crossbeam_channel::Receiver<String>,
@@ -332,8 +332,6 @@ pub struct Scheduler {
     ),
 }
 
-const NTHREADS: u32 = 3;
-
 impl Scheduler {
     pub fn new(
         hostname: String,
@@ -343,7 +341,7 @@ impl Scheduler {
     ) -> Scheduler {
         let mut tasklist: BTreeMap<Instant, String> = BTreeMap::new();
 
-        // Schedule all groups for check in the next second
+        // Schedule all groups for check to the next second
         for group in groups {
             tasklist.insert(
                 Instant::now().checked_add(Duration::from_secs(1)).unwrap(),
@@ -356,12 +354,13 @@ impl Scheduler {
             port,
             base_output_path,
             tasklist: Arc::new(RwLock::new(tasklist)),
-            task_channel: bounded::<String>(1),
-            response_channel: bounded::<WorkerGroupResult>(NTHREADS as usize * 2),
+            task_channel: bounded::<String>(NTHREADS as usize),
+            response_channel: unbounded::<WorkerGroupResult>(),
         }
     }
 
     pub fn run(&mut self) -> crate::Result<()> {
+        // start worker threads
         for i in 0..NTHREADS {
             log::info!("Stating worker thread {i}");
 
@@ -410,11 +409,12 @@ impl Scheduler {
 
                 // start processing items
                 for (k, group_name) in ready_tasks {
+                    // this call should block because of the size of the channel
                     self.task_channel.0.send(group_name).unwrap();
                     consummed.push(k);
                 }
             }
-            // removed from
+            // removed from btree
             for k in consummed {
                 self.tasklist.write().unwrap().remove(&k);
             }
@@ -439,19 +439,16 @@ impl Scheduler {
                     }
                     Err(TryRecvError::Disconnected) => {
                         // Sender has disconnected and channel is empty
-                        println!("Sender disconnected. Exiting loop.");
+                        log::info!("Sender disconnected. Exiting loop.");
                         return Ok(());
                     }
                 }
             }
         }
-        // // close initial connection to nntp server
-        // let _ = self.nntp_stream.quit();
     }
 
     // run range does not keep track of lists, just run them once for the defined range
     pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> crate::Result<()> {
-        // let mut consummed = vec![];
         let tasklist_guard = self.tasklist.read().unwrap();
 
         // take all tasks, they wont repeat in this mode
