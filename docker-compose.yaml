@@ -1,0 +1,15 @@
+name: mlarchive
+
+services:  
+  parser:
+    build:
+      context: ./
+      dockerfile: ./parser/container/Dockerfile
+    environment:
+      INPUT_DIR: "/parser/input"
+      OUTPUT_DIR: "/parser/output"
+    stdin_open: true
+    volumes:
+      - ./output:/parser/input
+      - ./parser_output:/parser/output
+      - ./parser/src:/parser/src

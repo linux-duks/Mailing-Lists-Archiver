@@ -1,0 +1,6 @@
+requests
+InquirerPy
+rich
+polars
+pyarrow
+fastparquet

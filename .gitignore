@@ -1,2 +1,4 @@
 /target
 output
+parser_output
+*/*/__pycache__

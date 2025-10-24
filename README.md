@@ -49,3 +49,28 @@ group_lists:
 
 This is the basic algorithm used by this script
 ![fluxogram](./docs/fluxogram.svg)
+
+
+# Email Parser
+
+Yay!
+
+## Usage
+First, build and deploy the docker container.
+```bash
+docker compose up
+```
+
+By default, the parser container will be up awaiting for connections. Open a bash in the parser container doing:
+```bash
+docker exec -it mlarchive-parser-1 /bin/bash
+```
+
+Then, run the main parser script:
+```bash
+python3 /parser/src/parser_main.py
+```
+
+The parsed emails will be saved in a parquet formatted archive (using hive partitioning on the name of the mailing lists) in the `parser_output/parsed/` directory.
+
+Incorrectly parsed email will be `parser_output/<mailing_list>/errors` directory.
