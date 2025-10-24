@@ -1,6 +1,6 @@
 use crate::errors;
 use crate::file_utils::*;
-use crossbeam_channel::bounded;
+use crossbeam_channel::{TryRecvError, bounded};
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
 use std::thread;
@@ -42,11 +42,13 @@ pub fn connect_to_nntp(address: String) -> nntp::Result<NNTPStream> {
 
 pub struct Worker {
     nntp_stream: NNTPStream,
-    hostname: String,
-    port: u16,
     base_output_path: String,
     needs_reconnection: bool,
     receiver: crossbeam_channel::Receiver<String>,
+    response_channel: (
+        crossbeam_channel::Sender<WorkerGroupResult>,
+        crossbeam_channel::Receiver<WorkerGroupResult>,
+    ),
 }
 
 impl Worker {
@@ -55,16 +57,19 @@ impl Worker {
         port: u16,
         base_output_path: String,
         receiver: crossbeam_channel::Receiver<String>,
+        response_channel: (
+            crossbeam_channel::Sender<WorkerGroupResult>,
+            crossbeam_channel::Receiver<WorkerGroupResult>,
+        ),
     ) -> Worker {
         let nntp_stream = connect_to_nntp(format!("{}:{}", hostname, port)).unwrap();
 
         Worker {
-            hostname,
-            port,
             base_output_path,
             nntp_stream,
             needs_reconnection: false,
             receiver,
+            response_channel,
         }
     }
 
@@ -136,28 +141,43 @@ impl Worker {
                     ) {
                         Ok(_) => {
                             // if successfull, reschedule
-                            // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
+                            self.response_channel
+                                .0
+                                .send(WorkerGroupResult::Ok(group_name.clone()))
+                                .unwrap();
                         }
                         Err(e) => {
                             // if found a failure, reschedule and return error
                             // TODO: check for connection errors here ?
-                            // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                            self.response_channel
+                                .0
+                                .send(WorkerGroupResult::Failed(group_name.clone()))
+                                .unwrap();
                             return Err(e);
                         }
                     };
                     // reschedule
-                    // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
+                    self.response_channel
+                        .0
+                        .send(WorkerGroupResult::Ok(group_name.clone()))
+                        .unwrap();
                 } else {
                     log::info!(
                         "Checking group : {group_name}. Local max ID: {last_article_number}"
                     );
                     // no new emails, reschedule for next minute
-                    // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_NO_NEWS);
+                    self.response_channel
+                        .0
+                        .send(WorkerGroupResult::NoNews(group_name.clone()))
+                        .unwrap();
                 }
             }
             Err(e) => {
                 log::error!("failure connecting to {group_name}, error: {e}");
-                // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                self.response_channel
+                    .0
+                    .send(WorkerGroupResult::Failed(group_name.clone()))
+                    .unwrap();
             }
         }
         Ok(())
@@ -288,6 +308,12 @@ impl Worker {
     }
 }
 
+enum WorkerGroupResult {
+    Ok(String),
+    Failed(String),
+    NoNews(String),
+}
+
 pub struct Scheduler {
     // nntp_stream: NNTPStream,
     hostname: String,
@@ -296,8 +322,14 @@ pub struct Scheduler {
     tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
     // base_output_path: String,
     // needs_reconnection: bool,
-    sender: crossbeam_channel::Sender<String>,
-    receiver: crossbeam_channel::Receiver<String>,
+    task_channel: (
+        crossbeam_channel::Sender<String>,
+        crossbeam_channel::Receiver<String>,
+    ),
+    response_channel: (
+        crossbeam_channel::Sender<WorkerGroupResult>,
+        crossbeam_channel::Receiver<WorkerGroupResult>,
+    ),
 }
 
 const NTHREADS: u32 = 3;
@@ -319,15 +351,13 @@ impl Scheduler {
             );
         }
 
-        let (sender, receiver) = bounded::<String>(1);
-
         Scheduler {
             hostname,
             port,
             base_output_path,
             tasklist: Arc::new(RwLock::new(tasklist)),
-            sender,
-            receiver,
+            task_channel: bounded::<String>(1),
+            response_channel: bounded::<WorkerGroupResult>(NTHREADS as usize * 2),
         }
     }
 
@@ -335,12 +365,14 @@ impl Scheduler {
         for i in 0..NTHREADS {
             log::info!("Stating worker thread {i}");
 
-            let receiver = self.receiver.clone();
+            let receiver = self.task_channel.1.clone();
+
             let mut worker = Worker::new(
                 self.hostname.clone(),
                 self.port,
                 self.base_output_path.clone(),
                 receiver,
+                self.response_channel.clone(),
             );
             // Spin up another thread
             thread::spawn(move || {
@@ -378,13 +410,39 @@ impl Scheduler {
 
                 // start processing items
                 for (k, group_name) in ready_tasks {
-                    self.sender.send(group_name).unwrap();
+                    self.task_channel.0.send(group_name).unwrap();
                     consummed.push(k);
                 }
             }
             // removed from
             for k in consummed {
                 self.tasklist.write().unwrap().remove(&k);
+            }
+
+            loop {
+                // check groups returned by workers, and reschedule them
+                match self.response_channel.1.try_recv() {
+                    Ok(msg) => match msg {
+                        WorkerGroupResult::Ok(group_name) => {
+                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
+                        }
+                        WorkerGroupResult::Failed(group_name) => {
+                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
+                        }
+                        WorkerGroupResult::NoNews(group_name) => {
+                            self.reschedule_group(group_name.clone(), INTERVAL_AFTER_NO_NEWS);
+                        }
+                    },
+                    Err(TryRecvError::Empty) => {
+                        // No message available, perform other tasks
+                        break;
+                    }
+                    Err(TryRecvError::Disconnected) => {
+                        // Sender has disconnected and channel is empty
+                        println!("Sender disconnected. Exiting loop.");
+                        return Ok(());
+                    }
+                }
             }
         }
         // // close initial connection to nntp server
@@ -405,12 +463,13 @@ impl Scheduler {
         // release the lock
         drop(tasklist_guard);
 
-        let receiver = self.receiver.clone();
+        let receiver = self.task_channel.1.clone();
         let mut worker = Worker::new(
             self.hostname.clone(),
             self.port,
             self.base_output_path.clone(),
             receiver,
+            self.response_channel.clone(),
         );
         // start processing items
         // TODO: run this with more than one list ?
