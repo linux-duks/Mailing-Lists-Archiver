@@ -1,9 +1,10 @@
 import io
 import os
+import re
 import polars as pl
 
 from parser_algorithm import parse_email_txt_to_dict
-from constants import PARQUET_COLS_SCHEMA
+from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE
 
 INPUT_DIR_PATH = os.environ["INPUT_DIR"]
 OUTPUT_DIR_PATH = os.environ["OUTPUT_DIR"]
@@ -34,18 +35,25 @@ def parse_mail_at(mailing_list):
         os.mkdir(list_output_path)
         os.mkdir(success_output_path)
         os.mkdir(error_output_path)
-
-        all_parsed = pl.DataFrame(schema=PARQUET_COLS_SCHEMA)
     else:
         all_parsed = pl.read_parquet(parquet_path)
     
-
     all_emails = os.listdir(list_input_path)
     all_emails.remove("__last_article_number")
+    all_parsed = all_parsed.with_row_index()
 
     for email_name in all_emails:
         email_path = list_input_path + "/" + email_name
         email_file = io.open(email_path, mode="r", encoding="utf-8")
+
+        email_id = get_email_id(email_file)
+        previous_index = email_previously_parsed(all_parsed,email_id)
+
+        #  Check whether email was parsed previously, so it won't even
+        # be parsed again if FORCE_REPARSE is set to False.
+        if previous_index is not None and not FORCE_REPARSE:
+            email_file.close()
+            continue
 
         try:
             email_as_dict = parse_email_txt_to_dict(email_file.read())
@@ -54,14 +62,58 @@ def parse_mail_at(mailing_list):
             continue
 
         email_as_df = pl.DataFrame(email_as_dict,schema=PARQUET_COLS_SCHEMA)
+        email_as_df = email_as_df.with_row_index()
 
-        all_parsed.extend(email_as_df)
+        if previous_index is not None: # Note that, necessarily, FORCE_REPARSE == True
+            
+            all_parsed = pl.concat([
+                all_parsed.slice(0,previous_index),
+                email_as_df,
+                all_parsed.slice(previous_index+1)
+            ])
+            
+        else:
+            all_parsed.extend(email_as_df) # Simply adds to end of DF
 
-        all_parsed.write_parquet(parquet_path)
         email_file.close()
 
-        break
- 
+    all_parsed = all_parsed.drop("index")
+    all_parsed.write_parquet(parquet_path)
+    #print(all_parsed)
+    
+
+def get_email_id(email_file) -> str:
+    """
+    Retrieves the email Message-ID.
+    """
+
+    for line in email_file.readlines():
+        if re.match(r"^Message-ID:", line,re.IGNORECASE):
+            message_id = line[len("Message-ID:"):].strip()
+            email_file.seek(0,os.SEEK_SET)
+            return message_id
+        
+    email_file.seek(0,os.SEEK_SET) # Return to the beginning of file stream
+    
+    raise Exception("Found email with no Message-ID field.")
+
+def email_previously_parsed(all_parsed,email_id) -> int | None:
+    """
+    Checks whether the given email message id corresponds
+    to a email saved in the archive. If that's the case, 
+    returns the dataframe row where the email is stored.
+    Otherwise, returns None.
+    """
+    
+    filter_res = all_parsed.filter(pl.col('Message-ID') == email_id)
+
+    if filter_res.shape[0] == 0:
+        return None
+    elif filter_res.shape[0] > 1:
+        raise Exception("Message-ID conflict on parquet databse for id " + email_id)
+
+    return filter_res[0,'index']
+
 def save_unsuccessful_parse(email_file, parsing_error, email_name, mailing_list, error_output_path):
     """
     Saves information on unsuccessful email parse. Both original email content and

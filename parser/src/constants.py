@@ -17,6 +17,8 @@ BEFORE_SIGNED = "Body"
 AFTER_SIGNED = "Code"
 SIGNED_BLOCK = "Trailers"
 
+FORCE_REPARSE = False #Always reparse every email on list. Otherwise parse only new emails.
+
 KEYS_MASK = [
   "From",
   "To",
