@@ -26,6 +26,8 @@ pub struct AppConfig {
     pub port: u16,
     #[arg(short, long, default_value = "./output", value_hint = ValueHint::DirPath)]
     pub output_dir: String,
+    #[arg(short, long, default_value = "1")]
+    pub nthreads: u8,
 
     #[arg(long)]
     group_lists: Option<Vec<String>>,

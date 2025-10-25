@@ -38,6 +38,7 @@ fn main() -> Result<()> {
         app_config.hostname.clone().unwrap(),
         app_config.port,
         app_config.output_dir.clone(),
+        app_config.nthreads,
         groups,
     );
     match app_config.get_article_range() {

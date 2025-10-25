@@ -1,7 +1,6 @@
 use crate::errors;
 use crate::file_utils::*;
 use crossbeam_channel::{TryRecvError, bounded, unbounded};
-use log::warn;
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
 use std::thread;
@@ -18,7 +17,6 @@ use std::{
 const INTERVAL_AFTER_SUCCESS: usize = 60 * 60; // 1h
 const INTERVAL_AFTER_NO_NEWS: usize = 60 * 60 * 2; // 2H
 const INTERVAL_AFTER_FAILURE: usize = 60 * 30; // 30min
-const NTHREADS: u32 = 3;
 
 pub fn connect_to_nntp(address: String) -> nntp::Result<NNTPStream> {
     let mut nntp_stream = match NNTPStream::connect(address) {
@@ -321,6 +319,7 @@ pub struct Scheduler {
     hostname: String,
     port: u16,
     base_output_path: String,
+    nthreds: u8,
     tasklist: Arc<RwLock<BTreeMap<Instant, String>>>,
     task_channel: (
         crossbeam_channel::Sender<String>,
@@ -337,6 +336,7 @@ impl Scheduler {
         hostname: String,
         port: u16,
         base_output_path: String,
+        nthreds: u8,
         groups: Vec<String>,
     ) -> Scheduler {
         let mut tasklist: BTreeMap<Instant, String> = BTreeMap::new();
@@ -353,15 +353,16 @@ impl Scheduler {
             hostname,
             port,
             base_output_path,
+            nthreds,
             tasklist: Arc::new(RwLock::new(tasklist)),
-            task_channel: bounded::<String>(NTHREADS as usize),
+            task_channel: bounded::<String>(nthreds as usize),
             response_channel: unbounded::<WorkerGroupResult>(),
         }
     }
 
     pub fn run(&mut self) -> crate::Result<()> {
         // start worker threads
-        for i in 0..NTHREADS {
+        for i in 0..self.nthreds {
             log::info!("Stating worker thread {i}");
 
             let receiver = self.task_channel.1.clone();
