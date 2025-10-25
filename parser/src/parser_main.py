@@ -22,6 +22,7 @@ def parse_mail_at(mailing_list):
     parquet_path = success_output_path + "/" + PARQUET_FILE_NAME
     error_output_path = list_output_path + "/errors"
 
+    remove_previous_errors(error_output_path)
     all_parsed = pl.DataFrame(schema=PARQUET_COLS_SCHEMA)
 
     if not os.path.isdir(list_output_path):
@@ -49,18 +50,7 @@ def parse_mail_at(mailing_list):
         try:
             email_as_dict = parse_email_txt_to_dict(email_file.read())
         except Exception as parsing_error:
-
-            to_save = email_file.read() 
-            to_save += '\n='*30 + " Exception:"
-            to_save += str(parsing_error)
-
-            print("Error when parsing file", email_name, "of list", mailing_list)
-            print(parsing_error)
-
-            with open(error_output_path + '/' + email_name,"w",encoding="utf-8") as error_output_file:
-                error_output_file.write(to_save)
-
-            email_file.close()
+            save_unsuccessful_parse(email_file, parsing_error, email_name, mailing_list, error_output_path)
             continue
 
         email_as_df = pl.DataFrame(email_as_dict,schema=PARQUET_COLS_SCHEMA)
@@ -71,7 +61,34 @@ def parse_mail_at(mailing_list):
         email_file.close()
 
         break
-        
+ 
+def save_unsuccessful_parse(email_file, parsing_error, email_name, mailing_list, error_output_path):
+    """
+    Saves information on unsuccessful email parse. Both original email content and
+    exception information are stored in the directory at <error_output_path>, in
+    a file with the same name as the original .eml file.
+    """
+    email_file.seek(0,os.SEEK_SET) # Return to the beginning of file stream
+    
+    to_save = email_file.read()
+    to_save += '\n' + '='*30 + " Exception:\n"
+    to_save += str(parsing_error)
+
+    print("Error when parsing file", email_name, "of list", mailing_list)
+    print(parsing_error)
+
+    with open(error_output_path + '/' + email_name,"w",encoding="utf-8") as error_output_file:
+        error_output_file.write(to_save)
+
+    email_file.close()
+
+def remove_previous_errors(errors_dir_path):
+    """
+    Removes every file from the directory at the path given.
+    """
+
+    for error_file_name in os.listdir(errors_dir_path):
+        os.remove(errors_dir_path + '/' + error_file_name)
 
 def main():
     for mailing_list in os.listdir(INPUT_DIR_PATH):
