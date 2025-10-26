@@ -55,6 +55,9 @@ def parse_header_by_line(data: dict, line: str, current_key: str) -> str:
 
 def parse_body_by_line(data: dict, line: str, body_state: dict):
 
+  if "Content-Type: application/pgp-signature;" in line or "Content-Disposition: attachment;" in line:
+    return True
+
   if body_state["body_state"] == "before_signed" and re.match(r"^\S+-By: [\S\s]* <\S+@\S+>", line, re.IGNORECASE):
     body_state["body_state"] = "signed_block"
     data[SIGNED_BLOCK] = line
@@ -76,6 +79,7 @@ def parse_body_by_line(data: dict, line: str, body_state: dict):
       data.setdefault(AFTER_SIGNED, "")
     data[AFTER_SIGNED] += line  + '\n'
 
+  return False
 
 def parse_email_txt_to_dict(text: str) -> object:
   data = {}
@@ -93,8 +97,9 @@ def parse_email_txt_to_dict(text: str) -> object:
       continue
     
     if parser_state["is_body"]:
-      parse_body_by_line(data, line, parser_state)
-
+      early_end = parse_body_by_line(data, line, parser_state)
+      if early_end:
+        break
     else:
       current_key = parse_header_by_line(data, line, current_key)
           
