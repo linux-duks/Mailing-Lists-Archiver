@@ -24,7 +24,6 @@ def parse_mail_at(mailing_list):
     parquet_path = success_output_path + "/" + PARQUET_FILE_NAME
     error_output_path = list_output_path + "/errors"
 
-    remove_previous_errors(error_output_path)
     all_parsed = pl.DataFrame(schema=PARQUET_COLS_SCHEMA)
 
     if not os.path.isdir(list_output_path):
@@ -37,10 +36,14 @@ def parse_mail_at(mailing_list):
         os.mkdir(success_output_path)
         os.mkdir(error_output_path)
     else:
+        if FORCE_REPARSE:
+            remove_previous_errors(error_output_path)
         all_parsed = pl.read_parquet(parquet_path)
     
     all_emails = os.listdir(list_input_path)
     all_emails.remove("__last_article_number")
+    if "errors.md" in all_emails:
+        all_emails.remove("errors.md")
     all_parsed = all_parsed.with_row_index()
 
     for email_name in all_emails:
@@ -65,7 +68,7 @@ def parse_mail_at(mailing_list):
 
         email_as_df = pl.DataFrame(email_as_dict,schema=PARQUET_COLS_SCHEMA)
         email_as_df = email_as_df.with_columns( # Let's keep our datetimes naive
-            pl.col("Date").dt.replace_time_zone(None)
+            pl.col("date").dt.replace_time_zone(None)
         )
 
         email_as_df = email_as_df.with_row_index()
@@ -95,21 +98,21 @@ def post_process_parsed_mail(email_as_dict: dict):
 
     # TODO: Anonymize everything here
     
-    email_as_dict["Cc"] = email_as_dict["Cc"].split(',')
-    email_as_dict["References"] = email_as_dict["References"].split(' ')
-    email_as_dict["Trailers"] = email_as_dict["Trailers"].split(',')
+    email_as_dict["cc"] = email_as_dict["cc"].split(',')
+    email_as_dict["references"] = email_as_dict["references"].split(' ')
+    email_as_dict["trailers"] = email_as_dict["trailers"].split(',')
 
-    old_date_time = email_as_dict["Date"]
+    old_date_time = email_as_dict["date"]
 
     try:
         new_date_time = datetime.strptime(old_date_time, "%a, %d %b %Y %X %z")
     except Exception:
         new_date_time = datetime.strptime(old_date_time[:-6].strip(), "%a, %d %b %Y %X %z")
 
-    if isinstance(email_as_dict["Subject"],list):
-        email_as_dict["Subject"] = email_as_dict["Subject"][0]
+    if isinstance(email_as_dict["subject"],list):
+        email_as_dict["subject"] = email_as_dict["subject"][0]
 
-    email_as_dict["Date"] = new_date_time
+    email_as_dict["date"] = new_date_time
 
     for dict_key in email_as_dict:
         email_as_dict[dict_key] = [email_as_dict[dict_key]]
@@ -129,7 +132,7 @@ def get_email_id(email_file) -> str:
         
     email_file.seek(0,os.SEEK_SET) # Return to the beginning of file stream
     
-    raise Exception("Found email with no Message-ID field.")
+    raise Exception("Found email with no Message-ID field for file " + email_file.name)
 
 def email_previously_parsed(all_parsed,email_id) -> int | None:
     """
@@ -139,7 +142,7 @@ def email_previously_parsed(all_parsed,email_id) -> int | None:
     Otherwise, returns None.
     """
     
-    filter_res = all_parsed.filter(pl.col('Message-ID') == email_id)
+    filter_res = all_parsed.filter(pl.col('message-id') == email_id)
 
     if filter_res.shape[0] == 0:
         return None

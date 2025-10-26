@@ -38,7 +38,7 @@ def parse_header_by_line(data: dict, line: str, current_key: str) -> str:
 
   if ":" in line and not (line.startswith(exclude_inicial_caracters)):
     key, value = line.split(":", 1)
-    key = key.strip()
+    key = key.strip().lower()
     value = value.strip()
 
     set_value_dict(data, key, value)
