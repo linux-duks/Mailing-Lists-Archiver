@@ -2,6 +2,7 @@ import io
 import os
 import re
 import polars as pl
+from datetime import datetime
 
 from parser_algorithm import parse_email_txt_to_dict
 from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE
@@ -57,11 +58,16 @@ def parse_mail_at(mailing_list):
 
         try:
             email_as_dict = parse_email_txt_to_dict(email_file.read())
+            email_as_dict = post_process_parsed_mail(email_as_dict)
         except Exception as parsing_error:
             save_unsuccessful_parse(email_file, parsing_error, email_name, mailing_list, error_output_path)
             continue
 
         email_as_df = pl.DataFrame(email_as_dict,schema=PARQUET_COLS_SCHEMA)
+        email_as_df = email_as_df.with_columns( # Let's keep our datetimes naive
+            pl.col("Date").dt.replace_time_zone(None)
+        )
+
         email_as_df = email_as_df.with_row_index()
 
         if previous_index is not None: # Note that, necessarily, FORCE_REPARSE == True
@@ -80,7 +86,35 @@ def parse_mail_at(mailing_list):
     all_parsed = all_parsed.drop("index")
     all_parsed.write_parquet(parquet_path)
     #print(all_parsed)
+
+def post_process_parsed_mail(email_as_dict: dict):
+    """
+    Post-processes dict containing email fields, parsing
+    multiple valued fields and other non Str fields.
+    """ 
+
+    # TODO: Anonymize everything here
     
+    email_as_dict["Cc"] = email_as_dict["Cc"].split(',')
+    email_as_dict["References"] = email_as_dict["References"].split(' ')
+    email_as_dict["Trailers"] = email_as_dict["Trailers"].split(',')
+
+    old_date_time = email_as_dict["Date"]
+
+    try:
+        new_date_time = datetime.strptime(old_date_time, "%a, %d %b %Y %X %z")
+    except Exception:
+        new_date_time = datetime.strptime(old_date_time[:-6].strip(), "%a, %d %b %Y %X %z")
+
+    if isinstance(email_as_dict["Subject"],list):
+        email_as_dict["Subject"] = email_as_dict["Subject"][0]
+
+    email_as_dict["Date"] = new_date_time
+
+    for dict_key in email_as_dict:
+        email_as_dict[dict_key] = [email_as_dict[dict_key]]
+
+    return email_as_dict
 
 def get_email_id(email_file) -> str:
     """

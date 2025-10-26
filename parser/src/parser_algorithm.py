@@ -55,13 +55,13 @@ def parse_header_by_line(data: dict, line: str, current_key: str) -> str:
 
 def parse_body_by_line(data: dict, line: str, body_state: dict):
 
-  if re.match(r"^Signed-off-by:", line, re.IGNORECASE):
+  if body_state["body_state"] == "before_signed" and re.match(r"^\S+-By: [\S\s]* <\S+@\S+>", line, re.IGNORECASE):
     body_state["body_state"] = "signed_block"
     data[SIGNED_BLOCK] = line
   
   elif body_state["body_state"] == "signed_block":
-    if re.match(r"^(Signed-off-by:|Acked-by:|Reviewed-by:)", line, re.IGNORECASE):
-      set_value_dict(data,SIGNED_BLOCK,line)
+    if re.match(r"^\S+-By: [\S\s]* <\S+@\S+>", line, re.IGNORECASE):
+      data[SIGNED_BLOCK] += ',' + line 
     else:
       body_state["body_state"] = "after_signed"
       set_value_dict(data,AFTER_SIGNED,line)
@@ -69,12 +69,12 @@ def parse_body_by_line(data: dict, line: str, body_state: dict):
   elif body_state["body_state"] == "before_signed":
     if not BEFORE_SIGNED in data: 
       data.setdefault(BEFORE_SIGNED, "")
-    data[BEFORE_SIGNED] += line
+    data[BEFORE_SIGNED] += line  + '\n'
 
   elif body_state["body_state"] == "after_signed":
     if not AFTER_SIGNED in data: 
       data.setdefault(AFTER_SIGNED, "")
-    data[AFTER_SIGNED] += line
+    data[AFTER_SIGNED] += line  + '\n'
 
 
 def parse_email_txt_to_dict(text: str) -> object:

@@ -1,23 +1,23 @@
 import polars as pl
 
 PARQUET_COLS_SCHEMA = {'From' : pl.String,
-                 'To': pl.String,#pl.List, # TODO: Update strings to lists of strings
-                 'Cc': pl.String,#pl.List,
+                 'To': pl.String,
+                 'Cc': pl.List(pl.String),
                  'Subject' : pl.String,
-                 'Date' : pl.String, #pl.Datetime, # TODO: Update Datetime string to datetime 
+                 'Date' : pl.Datetime,
                  'Message-ID': pl.String,
                  'In-Reply-To': pl.String,
-                 'References': pl.String,#pl.List,
+                 'References': pl.List(pl.String),
                  'X-Mailing-List' : pl.String,
                  'Body' : pl.String,
-                 'Trailers': pl.String,#pl.List,
+                 'Trailers': pl.List(pl.String),
                  'Code': pl.String}
 
 BEFORE_SIGNED = "Body"
 AFTER_SIGNED = "Code"
 SIGNED_BLOCK = "Trailers"
 
-FORCE_REPARSE = False #Always reparse every email on list. Otherwise parse only new emails.
+FORCE_REPARSE = True #Always reparse every email on list. Otherwise parse only new emails.
 
 KEYS_MASK = [
   "From",
