@@ -3,9 +3,10 @@ import os
 import re
 import polars as pl
 from datetime import datetime
+from multiprocessing import Pool
 
 from parser_algorithm import parse_email_txt_to_dict
-from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE
+from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE, N_PROC
 
 INPUT_DIR_PATH = os.environ["INPUT_DIR"]
 OUTPUT_DIR_PATH = os.environ["OUTPUT_DIR"]
@@ -180,8 +181,8 @@ def remove_previous_errors(errors_dir_path):
         os.remove(errors_dir_path + '/' + error_file_name)
 
 def main():
-    for mailing_list in os.listdir(INPUT_DIR_PATH):
-        parse_mail_at(mailing_list)
+    p = Pool(N_PROC)
+    p.map(parse_mail_at,os.listdir(INPUT_DIR_PATH))
 
 if __name__ == "__main__":
     main()
