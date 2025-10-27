@@ -6,7 +6,7 @@ from datetime import datetime
 from multiprocessing import Pool
 
 from parser_algorithm import parse_email_txt_to_dict
-from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE, N_PROC
+from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE, REDO_FAILED_PARSES, N_PROC, SINGLE_VALUED_COLS
 
 INPUT_DIR_PATH = os.environ["INPUT_DIR"]
 OUTPUT_DIR_PATH = os.environ["OUTPUT_DIR"]
@@ -37,15 +37,19 @@ def parse_mail_at(mailing_list):
         os.mkdir(success_output_path)
         os.mkdir(error_output_path)
     else:
-        if FORCE_REPARSE:
+        if FORCE_REPARSE and not REDO_FAILED_PARSES:
             remove_previous_errors(error_output_path)
         all_parsed = pl.read_parquet(parquet_path)
     
+    all_parsed = all_parsed.with_row_index()
+
     all_emails = os.listdir(list_input_path)
     all_emails.remove("__last_article_number")
     if "errors.md" in all_emails:
         all_emails.remove("errors.md")
-    all_parsed = all_parsed.with_row_index()
+    
+    if REDO_FAILED_PARSES:
+        all_emails = os.listdir(error_output_path)
 
     for email_name in all_emails:
         email_path = list_input_path + "/" + email_name
@@ -56,7 +60,7 @@ def parse_mail_at(mailing_list):
 
         #  Check whether email was parsed previously, so it won't even
         # be parsed again if FORCE_REPARSE is set to False.
-        if previous_index is not None and not FORCE_REPARSE:
+        if previous_index is not None and not (FORCE_REPARSE or REDO_FAILED_PARSES):
             email_file.close()
             continue
 
@@ -74,7 +78,7 @@ def parse_mail_at(mailing_list):
 
         email_as_df = email_as_df.with_row_index()
 
-        if previous_index is not None: # Note that, necessarily, FORCE_REPARSE == True
+        if previous_index is not None: # Note that, necessarily, FORCE_REPARSE or REDO_FAILED_PARSES == True
             
             all_parsed = pl.concat([
                 all_parsed.slice(0,previous_index),
@@ -87,31 +91,58 @@ def parse_mail_at(mailing_list):
 
         email_file.close()
 
+        if REDO_FAILED_PARSES:
+            os.remove(error_output_path + '/' + email_name)
+
     all_parsed = all_parsed.drop("index")
     all_parsed.write_parquet(parquet_path)
+    print("Saved all parsed mail on list", mailing_list)
     #print(all_parsed)
 
 def post_process_parsed_mail(email_as_dict: dict):
     """
     Post-processes dict containing email fields, parsing
     multiple valued fields and other non Str fields.
-    """ 
+    """         
+
+    if isinstance(email_as_dict["cc"],str):
+        email_as_dict["cc"] = email_as_dict["cc"].split(',')
+
+
+    #SINGLE_VALUED_COLS
+
+    if isinstance(email_as_dict["to"],list):
+        email_as_dict["cc"] = email_as_dict["to"][1:] + email_as_dict["cc"]
+        email_as_dict["to"] = email_as_dict["to"][0]
+
+    for column in SINGLE_VALUED_COLS:
+        if isinstance(email_as_dict[column],list):
+            email_as_dict[column] = email_as_dict[column][0]
+            # This usually doesn't make sense
+            # For dates, we're saving the first date parsed
+ 
+    email_as_dict["raw_body"] = email_as_dict["body"] + email_as_dict["trailers"] + email_as_dict["code"]
+
+    if isinstance(email_as_dict["references"],str):
+        email_as_dict["references"] = email_as_dict["references"].split(' ')
+
+    if isinstance(email_as_dict["trailers"],str):
+        email_as_dict["trailers"] = email_as_dict["trailers"].split(',')
 
     # TODO: Anonymize everything here
-    
-    email_as_dict["cc"] = email_as_dict["cc"].split(',')
-    email_as_dict["references"] = email_as_dict["references"].split(' ')
-    email_as_dict["trailers"] = email_as_dict["trailers"].split(',')
 
     old_date_time = email_as_dict["date"]
+
+    if '(' in old_date_time:
+        old_date_time = old_date_time[:old_date_time.index('(')].strip()
 
     try:
         new_date_time = datetime.strptime(old_date_time, "%a, %d %b %Y %X %z")
     except Exception:
-        new_date_time = datetime.strptime(old_date_time[:-6].strip(), "%a, %d %b %Y %X %z")
-
-    if isinstance(email_as_dict["subject"],list):
-        email_as_dict["subject"] = email_as_dict["subject"][0]
+        try:
+            new_date_time = datetime.strptime(old_date_time.strip(), "%a, %d %b %Y %H:%M %z")
+        except Exception:
+            new_date_time = datetime.strptime(old_date_time.strip(), "%d %b %Y %X %z")
 
     email_as_dict["date"] = new_date_time
 

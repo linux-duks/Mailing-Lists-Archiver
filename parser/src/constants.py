@@ -11,15 +11,23 @@ PARQUET_COLS_SCHEMA = {'from' : pl.String,
                  'x-mailing-list' : pl.String,
                  'body' : pl.String,
                  'trailers': pl.List(pl.String),
-                 'code': pl.String}
+                 'code': pl.String,
+                 'raw_body': pl.String}
 
 BEFORE_SIGNED = "body"
 AFTER_SIGNED = "code"
 SIGNED_BLOCK = "trailers"
 
+SINGLE_VALUED_COLS = ['from', 'to', 'subject',
+                 'date', 'message-id', 'in-reply-to',
+                 'x-mailing-list' ,
+                 'body' ,
+                 'code']
+
 N_PROC = 4
 
 FORCE_REPARSE = True #Always reparse every email on list. Otherwise parse only new emails.
+REDO_FAILED_PARSES = False # Parse only the emails that were unsuccessfully parsed on previous runs.
 
 KEYS_MASK = [
   "from",
