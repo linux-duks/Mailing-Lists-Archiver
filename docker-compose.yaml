@@ -5,11 +5,13 @@ services:
     build:
       context: ./
       dockerfile: ./parser/container/Dockerfile
+
     environment:
       INPUT_DIR: "/parser/input"
       OUTPUT_DIR: "/parser/output"
     stdin_open: true
+    user: "${UID}:${GID}"
     volumes:
-      - ./output:/parser/input
-      - ./parser_output:/parser/output
-      - ./parser/src:/parser/src
+      - ./output:/parser/input:z
+      - ./parser_output:/parser/output:z
+      - ./parser/src:/parser/src:z
