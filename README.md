@@ -45,7 +45,7 @@ group_lists:
   - dev.rcpassos.me.lists.iommu
 ```
 
-## Implemantation
+## Implementation
 
 This is the basic algorithm used by this script
 ![fluxogram](./docs/fluxogram.svg)
