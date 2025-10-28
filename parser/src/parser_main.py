@@ -4,9 +4,11 @@ import re
 import polars as pl
 from datetime import datetime
 from multiprocessing import Pool
+from tqdm import tqdm
 
 from parser_algorithm import parse_email_txt_to_dict
-from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE, REDO_FAILED_PARSES, N_PROC, SINGLE_VALUED_COLS
+from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE, REDO_FAILED_PARSES,\
+     N_PROC, SINGLE_VALUED_COLS, LISTS_TO_PARSE
 
 INPUT_DIR_PATH = os.environ["INPUT_DIR"]
 OUTPUT_DIR_PATH = os.environ["OUTPUT_DIR"]
@@ -39,7 +41,10 @@ def parse_mail_at(mailing_list):
     else:
         if FORCE_REPARSE and not REDO_FAILED_PARSES:
             remove_previous_errors(error_output_path)
-        all_parsed = pl.read_parquet(parquet_path)
+        try:
+            all_parsed = pl.read_parquet(parquet_path)
+        except FileNotFoundError:
+            pass
     
     all_parsed = all_parsed.with_row_index()
 
@@ -51,7 +56,10 @@ def parse_mail_at(mailing_list):
     if REDO_FAILED_PARSES:
         all_emails = os.listdir(error_output_path)
 
-    for email_name in all_emails:
+    newly_parsed = pl.DataFrame(schema=PARQUET_COLS_SCHEMA) 
+    newly_parsed = newly_parsed.with_row_index()
+
+    for email_name in tqdm(all_emails):
         email_path = list_input_path + "/" + email_name
         email_file = io.open(email_path, mode="r", encoding="utf-8")
 
@@ -87,13 +95,14 @@ def parse_mail_at(mailing_list):
             ])
             
         else:
-            all_parsed.extend(email_as_df) # Simply adds to end of DF
+            newly_parsed.extend(email_as_df) # Simply adds to end of DF
 
         email_file.close()
 
         if REDO_FAILED_PARSES:
             os.remove(error_output_path + '/' + email_name)
 
+    all_parsed.extend(newly_parsed)
     all_parsed = all_parsed.drop("index")
     all_parsed.write_parquet(parquet_path)
     print("Saved all parsed mail on list", mailing_list)
@@ -142,7 +151,10 @@ def post_process_parsed_mail(email_as_dict: dict):
         try:
             new_date_time = datetime.strptime(old_date_time.strip(), "%a, %d %b %Y %H:%M %z")
         except Exception:
-            new_date_time = datetime.strptime(old_date_time.strip(), "%d %b %Y %X %z")
+            try:
+                new_date_time = datetime.strptime(old_date_time.strip(), "%d %b %Y %X %z")
+            except Exception:
+                new_date_time = datetime.strptime(old_date_time[:-4].strip(), "%a, %d %b %Y %X")
 
     email_as_dict["date"] = new_date_time
 
@@ -212,8 +224,13 @@ def remove_previous_errors(errors_dir_path):
         os.remove(errors_dir_path + '/' + error_file_name)
 
 def main():
+
     p = Pool(N_PROC)
-    p.map(parse_mail_at,os.listdir(INPUT_DIR_PATH))
+
+    if len(LISTS_TO_PARSE) > 0:
+        p.map(parse_mail_at,LISTS_TO_PARSE)
+    else:
+        p.map(parse_mail_at,os.listdir(INPUT_DIR_PATH))
 
 if __name__ == "__main__":
     main()
