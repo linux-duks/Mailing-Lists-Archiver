@@ -26,7 +26,6 @@ SINGLE_VALUED_COLS = ['from', 'to', 'subject',
 
 N_PROC = 4
 
-FORCE_REPARSE = False #Always reparse every email on list. Otherwise parse only new emails.
 REDO_FAILED_PARSES = False # Parse only the emails that were unsuccessfully parsed on previous runs.
 
 LISTS_TO_PARSE = [""]

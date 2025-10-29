@@ -39,22 +39,22 @@ def parse_mail_at(mailing_list):
         os.mkdir(success_output_path)
         os.mkdir(error_output_path)
     else:
-        if FORCE_REPARSE and not REDO_FAILED_PARSES:
+        if REDO_FAILED_PARSES:
+            try:
+                all_parsed = pl.read_parquet(parquet_path)
+            except FileNotFoundError:
+                pass      
+        else:
             remove_previous_errors(error_output_path)
-        try:
-            all_parsed = pl.read_parquet(parquet_path)
-        except FileNotFoundError:
-            pass
-    
     all_parsed = all_parsed.with_row_index()
 
-    all_emails = os.listdir(list_input_path)
-    all_emails.remove("__last_article_number")
-    if "errors.md" in all_emails:
-        all_emails.remove("errors.md")
-    
     if REDO_FAILED_PARSES:
         all_emails = os.listdir(error_output_path)
+    else:
+        all_emails = os.listdir(list_input_path)
+        all_emails.remove("__last_article_number")
+        if "errors.md" in all_emails:
+            all_emails.remove("errors.md")
 
     newly_parsed = pl.DataFrame(schema=PARQUET_COLS_SCHEMA) 
     newly_parsed = newly_parsed.with_row_index()
@@ -62,15 +62,6 @@ def parse_mail_at(mailing_list):
     for email_name in tqdm(all_emails):
         email_path = list_input_path + "/" + email_name
         email_file = io.open(email_path, mode="r", encoding="utf-8")
-
-        email_id = get_email_id(email_file)
-        previous_index = email_previously_parsed(all_parsed,email_id)
-
-        #  Check whether email was parsed previously, so it won't even
-        # be parsed again if FORCE_REPARSE is set to False.
-        if previous_index is not None and not (FORCE_REPARSE or REDO_FAILED_PARSES):
-            email_file.close()
-            continue
 
         try:
             email_as_dict = parse_email_txt_to_dict(email_file.read())
@@ -85,17 +76,7 @@ def parse_mail_at(mailing_list):
         )
 
         email_as_df = email_as_df.with_row_index()
-
-        if previous_index is not None: # Note that, necessarily, FORCE_REPARSE or REDO_FAILED_PARSES == True
-            
-            all_parsed = pl.concat([
-                all_parsed.slice(0,previous_index),
-                email_as_df,
-                all_parsed.slice(previous_index+1)
-            ])
-            
-        else:
-            newly_parsed.extend(email_as_df) # Simply adds to end of DF
+        newly_parsed.extend(email_as_df) # Simply adds to end of DF
 
         email_file.close()
 
