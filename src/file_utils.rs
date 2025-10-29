@@ -1,3 +1,5 @@
+use serde::de::DeserializeOwned;
+use serde::ser::{self};
 use std::{
     error::Error,
     fs::{self, File, OpenOptions},
@@ -93,4 +95,28 @@ pub fn read_number_or_create(path: &Path) -> Result<usize, Box<dyn Error>> {
             }
         }
     }
+}
+
+pub fn write_yaml<T>(file_name: &str, value: &T) -> io::Result<()>
+where
+    T: ?Sized + ser::Serialize,
+{
+    let f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(file_name)?;
+
+    serde_yaml::to_writer(f, value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    Ok(())
+}
+
+pub fn read_yaml<T>(file_name: &str) -> io::Result<T>
+where
+    T: DeserializeOwned,
+{
+    let yaml_content = fs::read_to_string(file_name)?;
+    let res: T = serde_yaml::from_str(&yaml_content)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    return Ok(res);
 }

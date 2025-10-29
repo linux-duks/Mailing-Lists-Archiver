@@ -1,5 +1,5 @@
 use crate::errors;
-use crate::file_utils::*;
+use crate::file_utils;
 use crossbeam_channel::{TryRecvError, bounded, unbounded};
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
@@ -112,14 +112,32 @@ impl Worker {
     }
 
     fn handle_group(&mut self, group_name: String) -> nntp::Result<()> {
-        let last_article_number = read_number_or_create(Path::new(
+        let read_status: ReadStatus = file_utils::read_yaml::<ReadStatus>(
             format!(
                 "{}/{}/__last_article_number",
                 self.base_output_path, group_name
             )
             .as_str(),
-        ))
-        .unwrap() as usize;
+        )
+        // fallback to old format
+        // TODO: remove after out files are all in new format
+        .unwrap_or({
+            let last_article_number = file_utils::read_number_or_create(Path::new(
+                format!(
+                    "{}/{}/__last_article_number",
+                    self.base_output_path, group_name
+                )
+                .as_str(),
+            ))
+            .unwrap() as usize;
+
+            ReadStatus {
+                last_email: last_article_number,
+                timestamp: chrono::Utc::now(),
+            }
+        });
+
+        let last_article_number = read_status.last_email;
 
         log::info!("Checking group : {group_name}. Local max ID: {last_article_number}");
 
@@ -226,7 +244,7 @@ impl Worker {
         for current_mail in low..=high {
             match self.get_raw_article_by_number_retryable(current_mail as isize, 3) {
                 Ok(raw_article) => {
-                    write_lines_file(
+                    file_utils::write_lines_file(
                         Path::new(
                             format!(
                                 "{}/{}/{}.eml",
@@ -237,22 +255,24 @@ impl Worker {
                         raw_article,
                     )
                     .unwrap();
-                    write_lines_file(
-                        Path::new(
-                            format!(
-                                "{}/{}/__last_article_number",
-                                self.base_output_path, group_name
-                            )
-                            .as_str(),
-                        ),
-                        vec![format!("{}", current_mail)],
-                    )
-                    .unwrap();
+
+                    // write ReadStatus
+                    file_utils::write_yaml(
+                        format!(
+                            "{}/{}/__last_article_number",
+                            self.base_output_path, group_name
+                        )
+                        .as_str(),
+                        &ReadStatus {
+                            last_email: current_mail,
+                            timestamp: chrono::Utc::now(),
+                        },
+                    )?;
                 }
                 Err(e) => {
                     match e {
                         nntp::NNTPError::ArticleUnavailable => {
-                            append_line_to_file(
+                            file_utils::append_line_to_file(
                                 Path::new(
                                     format!("{}/{}/__errors", self.base_output_path, group_name)
                                         .as_str(),
@@ -492,4 +512,10 @@ impl Scheduler {
 
         tasklist_guard.insert(run_at, group_name);
     }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+struct ReadStatus {
+    pub last_email: usize,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
 }

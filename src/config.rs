@@ -1,10 +1,9 @@
-use crate::range_inputs;
+use crate::{errors::ConfigError, file_utils, range_inputs};
 use clap::{Args, Parser, ValueHint};
 use config::Config;
 use glob::glob;
 use inquire::MultiSelect;
 use std::collections::{HashMap, HashSet};
-use thiserror::Error;
 
 // TODO: test use confique::Config;
 
@@ -71,18 +70,6 @@ pub fn read_config() -> Result<AppConfig, anyhow::Error> {
     Ok(app_config)
 }
 
-#[derive(Error, Debug)]
-pub enum ConfigError {
-    // Io(#[from] io::Error),
-    #[error("invalid list selection. At least one should be configured, or selected in runtime")]
-    ListSelectionEmpty,
-    #[error("configured list(s) not available in server. {} Lists with error: {}", unavailable_lists.len(), unavailable_lists.iter().map(|x| x.to_string() + ",").collect::<String>()
-)]
-    ConfiguredListsNotAvailable { unavailable_lists: Vec<String> },
-    #[error("none of the configured lists are available in server")]
-    AllListsUnavailable,
-}
-
 impl AppConfig {
     /// returns the lists ready to use
     ///
@@ -109,14 +96,10 @@ impl AppConfig {
                 let mut selected_lists = HashMap::new();
                 selected_lists.insert("group_lists", answer.clone());
 
-                let f = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(false)
-                    .open("nntp_config_selected_lists.yml")
-                    .expect("Couldn't open file");
-
-                serde_yaml::to_writer(f, &selected_lists).unwrap();
+                match file_utils::write_yaml("nntp_config_selected_lists.yml", &selected_lists) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(ConfigError::Io(e)),
+                }?;
 
                 Ok(answer)
             }
