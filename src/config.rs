@@ -80,19 +80,24 @@ impl AppConfig {
         &mut self,
         list_options: Vec<String>,
     ) -> Result<Vec<String>, ConfigError> {
+        let mut answer: Vec<String>;
         if self.group_lists.is_none() {
             log::info!("No group_lists defined");
-            let answer = MultiSelect::new("No groups selected. Select them now:", list_options)
+
+            // list of options provides, with "ALL" as first
+            let mut select_options = vec!["ALL".to_string()];
+            select_options.extend(list_options.clone());
+
+            answer = MultiSelect::new("No groups selected. Select them now:", select_options)
                 .prompt()
                 .unwrap_or_else(|_| std::process::exit(0));
 
             if answer.is_empty() {
                 log::info!("empty selection");
                 self.group_lists = None;
-                Err(ConfigError::ListSelectionEmpty)
+                return Err(ConfigError::ListSelectionEmpty);
             } else {
                 // save selection to a file
-                // TODO: move fo file_utils
                 let mut selected_lists = HashMap::new();
                 selected_lists.insert("group_lists", answer.clone());
 
@@ -100,8 +105,6 @@ impl AppConfig {
                     Ok(_) => Ok(()),
                     Err(e) => Err(ConfigError::Io(e)),
                 }?;
-
-                Ok(answer)
             }
         } else {
             let mut group_lists = self.group_lists.clone().unwrap();
@@ -123,9 +126,17 @@ impl AppConfig {
                     }
                 );
             }
-
-            Ok(valid)
+            answer = valid;
         }
+
+        // If "ALL" provided, load all lists
+        if answer[0] == "ALL" {
+            log::info!("Selected all lists");
+            log::debug!("Lists selected: {:#?}", list_options);
+            answer = list_options;
+        }
+
+        Ok(answer)
     }
 
     pub fn get_article_range(&self) -> Option<impl Iterator<Item = usize>> {
