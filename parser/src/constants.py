@@ -28,7 +28,7 @@ N_PROC = 4
 
 REDO_FAILED_PARSES = False # Parse only the emails that were unsuccessfully parsed on previous runs.
 
-LISTS_TO_PARSE = [""]
+LISTS_TO_PARSE = []
 
 KEYS_MASK = [
   "from",

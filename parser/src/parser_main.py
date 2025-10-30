@@ -3,11 +3,12 @@ import os
 import re
 import polars as pl
 from datetime import datetime
+from dateutil import parser
 from multiprocessing import Pool
 from tqdm import tqdm
 
 from parser_algorithm import parse_email_txt_to_dict
-from constants import PARQUET_COLS_SCHEMA, FORCE_REPARSE, REDO_FAILED_PARSES,\
+from constants import PARQUET_COLS_SCHEMA, REDO_FAILED_PARSES,\
      N_PROC, SINGLE_VALUED_COLS, LISTS_TO_PARSE
 
 INPUT_DIR_PATH = os.environ["INPUT_DIR"]
@@ -55,6 +56,8 @@ def parse_mail_at(mailing_list):
         all_emails.remove("__last_article_number")
         if "errors.md" in all_emails:
             all_emails.remove("errors.md")
+        if "__errors" in all_emails:
+            all_emails.remove("__errors")
 
     newly_parsed = pl.DataFrame(schema=PARQUET_COLS_SCHEMA) 
     newly_parsed = newly_parsed.with_row_index()
@@ -121,28 +124,21 @@ def post_process_parsed_mail(email_as_dict: dict):
 
     # TODO: Anonymize everything here
 
-    old_date_time = email_as_dict["date"]
+    old_date_time = email_as_dict["date"].strip()
 
     if '(' in old_date_time:
         old_date_time = old_date_time[:old_date_time.index('(')].strip()
 
-    try:
-        new_date_time = datetime.strptime(old_date_time, "%a, %d %b %Y %X %z")
-    except Exception:
-        try:
-            new_date_time = datetime.strptime(old_date_time.strip(), "%a, %d %b %Y %H:%M %z")
-        except Exception:
-            try:
-                new_date_time = datetime.strptime(old_date_time.strip(), "%d %b %Y %X %z")
-            except Exception:
-                new_date_time = datetime.strptime(old_date_time[:-4].strip(), "%a, %d %b %Y %X")
-
-    email_as_dict["date"] = new_date_time
+    if len(old_date_time) < 5:
+        email_as_dict["date"] = None
+    else:
+        new_date_time = parser.parse(old_date_time)
+        email_as_dict["date"] = new_date_time
 
     for dict_key in email_as_dict:
         email_as_dict[dict_key] = [email_as_dict[dict_key]]
 
-    return email_as_dict
+    return email_as_dict   
 
 def get_email_id(email_file) -> str:
     """
