@@ -92,6 +92,12 @@ impl AppConfig {
                 .prompt()
                 .unwrap_or_else(|_| std::process::exit(0));
 
+            if answer[0] == "ALL" {
+                log::info!("All lists selected");
+                log::debug!("Lists selected: {:#?}", list_options);
+                answer = list_options;
+            }
+
             if answer.is_empty() {
                 log::info!("empty selection");
                 self.group_lists = None;
@@ -108,32 +114,34 @@ impl AppConfig {
             }
         } else {
             let mut group_lists = self.group_lists.clone().unwrap();
-            group_lists.dedup();
-            let item_set: HashSet<_> = list_options.iter().collect();
-            group_lists.retain(|item| item_set.contains(item));
-            let (valid, invalid): (Vec<_>, Vec<_>) = group_lists
-                .into_iter()
-                .partition(|item| item_set.contains(item));
 
-            if valid.is_empty() {
-                return Err(ConfigError::AllListsUnavailable);
-            }
-            if !invalid.is_empty() {
-                log::warn!(
-                    "Some lists are unavailable: {}",
-                    ConfigError::ConfiguredListsNotAvailable {
-                        unavailable_lists: invalid
-                    }
-                );
-            }
-            answer = valid;
-        }
+            // If "ALL" provided, load all lists
+            if group_lists[0] == "ALL" {
+                log::info!("Configured to fetch all lists");
+                log::debug!("Lists selected: {:#?}", list_options);
+                answer = list_options;
+            } else {
+                // or check if lists provided are valid
+                group_lists.dedup();
+                let item_set: HashSet<_> = list_options.iter().collect();
+                group_lists.retain(|item| item_set.contains(item));
+                let (valid, invalid): (Vec<_>, Vec<_>) = group_lists
+                    .into_iter()
+                    .partition(|item| item_set.contains(item));
 
-        // If "ALL" provided, load all lists
-        if answer[0] == "ALL" {
-            log::info!("Selected all lists");
-            log::debug!("Lists selected: {:#?}", list_options);
-            answer = list_options;
+                if valid.is_empty() {
+                    return Err(ConfigError::AllListsUnavailable);
+                }
+                if !invalid.is_empty() {
+                    log::warn!(
+                        "Some lists are unavailable: {}",
+                        ConfigError::ConfiguredListsNotAvailable {
+                            unavailable_lists: invalid
+                        }
+                    );
+                }
+                answer = valid;
+            }
         }
 
         Ok(answer)
