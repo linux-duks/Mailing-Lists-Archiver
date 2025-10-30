@@ -58,6 +58,8 @@ def parse_mail_at(mailing_list):
             all_emails.remove("errors.md")
         if "__errors" in all_emails:
             all_emails.remove("__errors")
+        if "errors.txt" in all_emails:
+            all_emails.remove("errors.txt")
 
     newly_parsed = pl.DataFrame(schema=PARQUET_COLS_SCHEMA) 
     newly_parsed = newly_parsed.with_row_index()
@@ -114,6 +116,8 @@ def post_process_parsed_mail(email_as_dict: dict):
             # This usually doesn't make sense
             # For dates, we're saving the first date parsed
  
+    # TODO: Anonymize everything here, before raw_body col
+
     email_as_dict["raw_body"] = email_as_dict["body"] + email_as_dict["trailers"] + email_as_dict["code"]
 
     if isinstance(email_as_dict["references"],str):
@@ -121,8 +125,6 @@ def post_process_parsed_mail(email_as_dict: dict):
 
     if isinstance(email_as_dict["trailers"],str):
         email_as_dict["trailers"] = email_as_dict["trailers"].split(',')
-
-    # TODO: Anonymize everything here
 
     old_date_time = email_as_dict["date"].strip()
 
@@ -132,7 +134,20 @@ def post_process_parsed_mail(email_as_dict: dict):
     if len(old_date_time) < 5:
         email_as_dict["date"] = None
     else:
-        new_date_time = parser.parse(old_date_time)
+        try:
+            new_date_time = parser.parse(old_date_time, ignoretz=True)
+        except:
+            try:
+                new_date_time = parser.parse(old_date_time.replace('.',':'), ignoretz=True)
+            except:
+                try:
+                    new_date_time = parser.parse(old_date_time[:len("Fri, 15 Jun 2012 16:52:52")].strip(), ignoretz=True)
+                except:
+                    try:
+                        new_date_time = parser.parse(old_date_time[:len("Fri, 5 Jun 2012 16:52:52")].strip(), ignoretz=True)
+                    except:
+                        new_date_time = None
+                        
         email_as_dict["date"] = new_date_time
 
     for dict_key in email_as_dict:
