@@ -1,0 +1,19 @@
+[package]
+authors = ["Rafael Passos <rafael@rcpassos.me>"]
+name = "mlh_graph"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mlh_graph"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.27", features = ["extension-module"] }
+sha1 = { version = "0.10" }
+rdst = { version  ="0.20", features = ["multi-threaded"] }
+thiserror = "2.0"
+faster-hex = { version = "0.10", features = ["std"], default-features = false }
+const_panic = { version = "0.2" }
+const-hex = { version = "1.17" }
+serde = "1.0"
