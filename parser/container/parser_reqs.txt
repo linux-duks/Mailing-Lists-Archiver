@@ -1,3 +1,0 @@
-polars
-tqdm
-python-dateutil
