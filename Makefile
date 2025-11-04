@@ -87,3 +87,14 @@ parse:
 		echo "==> Found files in 'output'. Changing to 'parser' directory..."; \
 		cd parser && $(CONTAINER)-compose up; \
 	fi
+
+.PHONY: anonymize 
+anonymize:
+	@if [ ! -d "parser_output/parsed" ] || [ -n "$(ls "parser_output/parsed")" ]; then \
+		echo "==> Error: 'parser_output/parsed' directory is missing or empty."; \
+		echo "==> Please run the parser first to generate the dataset."; \
+		exit 1; \
+	else \
+		echo "==> Found files in 'parser_output/parsed'. Changing to 'anonymizer' directory..."; \
+		cd anonymizer && $(CONTAINER)-compose up; \
+	fi
