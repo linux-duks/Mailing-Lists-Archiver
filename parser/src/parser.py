@@ -107,22 +107,17 @@ def post_process_parsed_mail(email_as_dict: dict):
     multiple valued fields and other non Str fields.
     """
 
+    if isinstance(email_as_dict["to"], str):
+        email_as_dict["to"] = email_as_dict["to"].split(",")
+    
     if isinstance(email_as_dict["cc"], str):
         email_as_dict["cc"] = email_as_dict["cc"].split(",")
-
-    # SINGLE_VALUED_COLS
-
-    if isinstance(email_as_dict["to"], list):
-        email_as_dict["cc"] = email_as_dict["to"][1:] + email_as_dict["cc"]
-        email_as_dict["to"] = email_as_dict["to"][0]
 
     for column in SINGLE_VALUED_COLS:
         if isinstance(email_as_dict[column], list):
             email_as_dict[column] = email_as_dict[column][0]
             # This usually doesn't make sense
             # For dates, we're saving the first date parsed
-
-    # TODO: Anonymize everything here, before raw_body col
 
     email_as_dict["raw_body"] = (
         email_as_dict["body"] + email_as_dict["trailers"] + email_as_dict["code"]

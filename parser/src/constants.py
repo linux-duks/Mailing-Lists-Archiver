@@ -1,7 +1,7 @@
 import polars as pl
 
 PARQUET_COLS_SCHEMA = {'from' : pl.String,
-                 'to': pl.String,
+                 'to': pl.List(pl.String),
                  'cc': pl.List(pl.String),
                  'subject' : pl.String,
                  'date' : pl.Datetime,
