@@ -52,6 +52,7 @@ KEYS_MASK = [
     "in-reply-to",
     "references",
     "x-mailing-list",
+    "raw_body",
     BEFORE_SIGNED,
     SIGNED_BLOCK,
     AFTER_SIGNED,

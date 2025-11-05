@@ -85,7 +85,7 @@ parse:
 		exit 1; \
 	else \
 		echo "==> Found files in 'output'. Changing to 'parser' directory..."; \
-		cd parser && $(CONTAINER)-compose up; \
+		cd mlh_parser && $(CONTAINER)-compose up; \
 	fi
 
 .PHONY: anonymize 
@@ -98,3 +98,14 @@ anonymize:
 		echo "==> Found files in 'parser_output/parsed'. Changing to 'anonymizer' directory..."; \
 		cd anonymizer && $(CONTAINER)-compose up; \
 	fi
+
+
+debug-parser:
+	cd mlh_parser && INPUT_DIR="../output" OUTPUT_DIR="../parser_output" uv run src/main.py
+
+test-parser:
+	cd mlh_parser && uv tool run nox
+
+debug-anonimyzer:
+	cd anonymizer && INPUT_DIR="../parser_output/parsed" OUTPUT_DIR="../anonymizer_output" uv run src/main.py
+

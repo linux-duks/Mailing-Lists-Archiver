@@ -5,28 +5,25 @@ import polars as pl
 from dateutil import parser
 from tqdm import tqdm
 
-from parser_algorithm import parse_email_txt_to_dict
-from constants import (
+from mlh_parser.parser_algorithm import parse_email_txt_to_dict
+from mlh_parser.constants import (
     PARQUET_COLS_SCHEMA,
     REDO_FAILED_PARSES,
     SINGLE_VALUED_COLS,
 )
 
-# TODO: move to config location
-INPUT_DIR_PATH = os.environ["INPUT_DIR"]
-OUTPUT_DIR_PATH = os.environ["OUTPUT_DIR"]
-PARQUET_DIR_PATH = OUTPUT_DIR_PATH + "/parsed"
-PARQUET_FILE_NAME = "list_data.parquet"
 
-
-def parse_mail_at(mailing_list):
+def parse_mail_at(mailing_list, input_dir_path, output_dir_path):
     """
     Parses the emails from a single specified list,
     to be found in INPUT_DIR_PATH/mailing_list
     """
 
-    list_input_path = INPUT_DIR_PATH + "/" + mailing_list
-    list_output_path = OUTPUT_DIR_PATH + "/" + mailing_list
+    PARQUET_DIR_PATH = output_dir_path + "/parsed"
+    PARQUET_FILE_NAME = "list_data.parquet"
+
+    list_input_path = input_dir_path + "/" + mailing_list
+    list_output_path = output_dir_path + "/" + mailing_list
     success_output_path = PARQUET_DIR_PATH + "/list=" + mailing_list
     parquet_path = success_output_path + "/" + PARQUET_FILE_NAME
     error_output_path = list_output_path + "/errors"
@@ -74,6 +71,7 @@ def parse_mail_at(mailing_list):
 
         try:
             email_as_dict = parse_email_txt_to_dict(email_file.read())
+
             email_as_dict = post_process_parsed_mail(email_as_dict)
         except Exception as parsing_error:
             save_unsuccessful_parse(

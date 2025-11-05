@@ -1,5 +1,5 @@
 import re
-from constants import *
+from mlh_parser.constants import *
 
 
 def set_value_dict(data: dict, key: str, value: str):
@@ -74,7 +74,7 @@ def extract_attributions(commit_message) -> (list[dict], list[str]):
     # The pattern is compiled with MULTILINE to match '^' at the start of each line,
     # and IGNORECASE to match "Signed-off-by", "signed-off-by", etc.
     pattern = re.compile(
-        r"^(?P<type>[a-zA-Z\-]+-by):\s*(?P<name>[^<]+?)\s*<(?P<email>[^>]+)>",
+        r"^(?P<type>[a-zA-Z\-]+-by):[ \t]*(?P<name>[^<\n]+?)[ \t]*<(?P<email>[^>\n]+)>",
         re.MULTILINE | re.IGNORECASE,
     )
 
@@ -98,13 +98,7 @@ signed_block_regex = r"^\S+-By: [\S\s]* <\S+@\S+>"
 
 
 def parse_body_by_line(data: dict, line: str, body_state: dict):
-    if (
-        "Content-Type: application/pgp-signature;" in line
-        or "Content-Disposition: attachment;" in line
-    ):
-        return True
-
-    # TODO: check if this path is still necessary
+    # TODO: fix code detection
     if body_state["body_state"] == "before_signed" and re.match(
         signed_block_regex, line, re.IGNORECASE
     ):
@@ -125,14 +119,13 @@ def parse_body_by_line(data: dict, line: str, body_state: dict):
             data.setdefault(AFTER_SIGNED, "")
         data[AFTER_SIGNED] += line + "\n"
 
-    return False
-
 
 def parse_email_txt_to_dict(text: str) -> object:
     data = {}
     current_key = None
     lines = text.splitlines()
     parser_state = {"is_body": False, "body_state": "before_signed"}
+    data["raw_body"] = ""
 
     raw_body_lines = []
 
@@ -144,10 +137,7 @@ def parse_email_txt_to_dict(text: str) -> object:
 
         if parser_state["is_body"]:
             raw_body_lines.append(line)
-            early_end = parse_body_by_line(data, line, parser_state)
-            if early_end:
-                break
-
+            parse_body_by_line(data, line, parser_state)
         else:
             current_key = parse_header_by_line(data, line, current_key)
 

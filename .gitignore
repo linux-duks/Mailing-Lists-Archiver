@@ -1,4 +1,5 @@
 **/target
 output
 parser_output
-*/*/__pycache__
+**/__pycache__
+**/*.egg-info
