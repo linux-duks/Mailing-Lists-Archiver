@@ -109,7 +109,7 @@ def post_process_parsed_mail(email_as_dict: dict):
 
     if isinstance(email_as_dict["to"], str):
         email_as_dict["to"] = email_as_dict["to"].split(",")
-    
+
     if isinstance(email_as_dict["cc"], str):
         email_as_dict["cc"] = email_as_dict["cc"].split(",")
 

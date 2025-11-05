@@ -10,9 +10,9 @@ import polars as pl
 
 from parser_main import INPUT_DIR_PATH, PARQUET_DIR_PATH, PARQUET_FILE_NAME
 
+
 def main():
-    
-    print("-"*20, "Sanity Check!", "-"*20)
+    print("-" * 20, "Sanity Check!", "-" * 20)
 
     total_emails = 0
     total_parsed = 0
@@ -20,19 +20,23 @@ def main():
     for mailing_list in os.listdir(INPUT_DIR_PATH):
         num_emails = get_list_len(mailing_list)
         num_parquet = get_entries_in_list_parquet(mailing_list)
-        error_msg = "" if num_emails == num_parquet else str(num_emails-num_parquet) + " emails missing!!"
-        print(mailing_list,"|",num_emails,"|",num_parquet,"|",error_msg)
+        error_msg = (
+            ""
+            if num_emails == num_parquet
+            else str(num_emails - num_parquet) + " emails missing!!"
+        )
+        print(mailing_list, "|", num_emails, "|", num_parquet, "|", error_msg)
 
         total_emails += num_emails
         total_parsed += num_parquet
-    
-    print("-"*(42+len("Sanity Check!")))
+
+    print("-" * (42 + len("Sanity Check!")))
     print("Number of emails available:", total_emails)
     print("Number of emails in parquet files:", total_parsed)
 
 
 def get_list_len(mailing_list):
-    list_input_path = INPUT_DIR_PATH + '/' + mailing_list
+    list_input_path = INPUT_DIR_PATH + "/" + mailing_list
 
     all_emails = os.listdir(list_input_path)
     all_emails.remove("__last_article_number")
@@ -45,12 +49,14 @@ def get_list_len(mailing_list):
 
     return len(all_emails)
 
+
 def get_entries_in_list_parquet(mailing_list):
     parquet_path = PARQUET_DIR_PATH + "/list=" + mailing_list + "/" + PARQUET_FILE_NAME
     df = pl.read_parquet(parquet_path)
     num_rows = len(df)
     del df
     return num_rows
+
 
 if __name__ == "__main__":
     main()
