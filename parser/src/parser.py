@@ -98,7 +98,6 @@ def parse_mail_at(mailing_list):
     all_parsed = all_parsed.drop("index")
     all_parsed.write_parquet(parquet_path)
     print("Saved all parsed mail on list", mailing_list)
-    # print(all_parsed)
 
 
 def post_process_parsed_mail(email_as_dict: dict):
@@ -119,26 +118,8 @@ def post_process_parsed_mail(email_as_dict: dict):
             # This usually doesn't make sense
             # For dates, we're saving the first date parsed
 
-    email_as_dict["raw_body"] = (
-        email_as_dict["body"] + email_as_dict["trailers"] + email_as_dict["code"]
-    )
-
     if isinstance(email_as_dict["references"], str):
         email_as_dict["references"] = email_as_dict["references"].split(" ")
-
-    if isinstance(email_as_dict["trailers"], str):
-        trailers = []
-        email_as_dict["trailers"] = email_as_dict["trailers"].strip().split(",")
-        for trailer in email_as_dict["trailers"]:
-            if len(trailer.strip()) != 0:
-                attribution, identification = trailer.split(":")
-                trailers.append(
-                    {
-                        "attribution": attribution.strip(),
-                        "identification": identification.strip(),
-                    }
-                )
-        email_as_dict["trailers"] = trailers
 
     old_date_time = email_as_dict["date"].strip()
 
