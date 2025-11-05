@@ -127,7 +127,18 @@ def post_process_parsed_mail(email_as_dict: dict):
         email_as_dict["references"] = email_as_dict["references"].split(" ")
 
     if isinstance(email_as_dict["trailers"], str):
-        email_as_dict["trailers"] = email_as_dict["trailers"].split(",")
+        trailers = []
+        email_as_dict["trailers"] = email_as_dict["trailers"].strip().split(",")
+        for trailer in email_as_dict["trailers"]:
+            if len(trailer.strip()) != 0:
+                attribution, identification = trailer.split(":")
+                trailers.append(
+                    {
+                        "attribution": attribution.strip(),
+                        "identification": identification.strip(),
+                    }
+                )
+        email_as_dict["trailers"] = trailers
 
     old_date_time = email_as_dict["date"].strip()
 
