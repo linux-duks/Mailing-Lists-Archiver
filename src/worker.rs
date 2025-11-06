@@ -132,10 +132,22 @@ impl Worker {
                 ))
                 .unwrap() as usize;
 
-                ReadStatus {
+                let read_status = ReadStatus {
                     last_email: last_article_number,
                     timestamp: chrono::Utc::now(),
-                }
+                };
+
+                // write ReadStatus
+                file_utils::write_yaml(
+                    format!(
+                        "{}/{}/__last_article_number",
+                        self.base_output_path, group_name
+                    )
+                    .as_str(),
+                    &read_status,
+                )?;
+
+                read_status
             }
         };
 
