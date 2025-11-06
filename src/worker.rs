@@ -104,7 +104,6 @@ impl Worker {
                         "Consummer failed while processing {group_name} with error {}",
                         &err
                     );
-                    // break;
                     return Err(errors::Error::NNTP(err));
                 }
             }
@@ -112,33 +111,13 @@ impl Worker {
     }
 
     fn handle_group(&mut self, group_name: String) -> nntp::Result<()> {
-        let read_status: ReadStatus = match file_utils::read_yaml::<ReadStatus>(
+        let read_status: ReadStatus = file_utils::read_yaml::<ReadStatus>(
             format!(
                 "{}/{}/__last_article_number",
                 self.base_output_path, group_name
             )
             .as_str(),
-        ) {
-            Ok(r) => r,
-            Err(e) => {
-                log::warn!("Error reading status:  {e}");
-                // fallback to old format
-                // TODO: remove fallback when all files migrated, change to abort or reset cursor
-                let last_article_number = file_utils::read_number_or_create(Path::new(
-                    format!(
-                        "{}/{}/__last_article_number",
-                        self.base_output_path, group_name
-                    )
-                    .as_str(),
-                ))
-                .unwrap() as usize;
-
-                ReadStatus {
-                    last_email: last_article_number,
-                    timestamp: chrono::Utc::now(),
-                }
-            }
-        };
+        )?;
 
         let last_article_number = read_status.last_email;
 
@@ -216,24 +195,11 @@ impl Worker {
             Ok(group) => {
                 log::info!("Will start collecting mails from range for group {group}",);
                 for article_number in range {
-                    // this call may return an IO error,
-                    match self.read_new_mails(group_name.clone(), article_number, article_number) {
-                        Ok(_) => {
-                            // if successfull, reschedule
-                            // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_SUCCESS);
-                        }
-                        Err(e) => {
-                            // if found a failure, reschedule and return error
-                            // TODO: check for connection errors here ?
-                            // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
-                            return Err(e);
-                        }
-                    };
+                    self.read_new_mails(group_name.clone(), article_number, article_number)?;
                 }
             }
             Err(e) => {
                 log::error!("failure connecting to {group_name}, error: {e}");
-                // self.reschedule_group(group_name.clone(), INTERVAL_AFTER_FAILURE);
             }
         }
         Ok(())
