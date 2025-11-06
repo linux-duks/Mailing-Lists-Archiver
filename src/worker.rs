@@ -122,16 +122,18 @@ impl Worker {
             Ok(r) => r,
             Err(e) => {
                 log::warn!("Error reading status:  {e}");
-                // fallback to old format
-                // TODO: remove fallback when all files migrated, change to abort or reset cursor
-                let last_article_number = file_utils::read_number_or_create(Path::new(
+                // attempted to read a number from the file, or fallback to 1
+                let last_article_number = file_utils::try_read_number(Path::new(
                     format!(
                         "{}/{}/__last_article_number",
                         self.base_output_path, group_name
                     )
                     .as_str(),
                 ))
-                .unwrap() as usize;
+                .unwrap_or(0);
+                if last_article_number == 0 {
+                    log::info!("Reading list {group_name} from mail 0");
+                }
 
                 let read_status = ReadStatus {
                     last_email: last_article_number,

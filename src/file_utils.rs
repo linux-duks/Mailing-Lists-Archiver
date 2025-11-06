@@ -1,7 +1,6 @@
 use serde::de::DeserializeOwned;
 use serde::ser::{self};
 use std::{
-    error::Error,
     fs::{self, File, OpenOptions},
     io::{self, LineWriter, Write},
     path::Path,
@@ -42,59 +41,29 @@ pub fn append_line_to_file(path: &Path, line: &str) -> io::Result<()> {
     Ok(())
 }
 
-/// Reads a number from a file.
-///
-/// If the file or its parent directories do not exist, it creates them
-/// and initializes the file with the content "1".
+/// tries to read a number from a file.
 ///
 /// # Arguments
 /// * `path` - A reference to the path of the file to read.
 /// # Returns
 ///
 /// * `Result<usize, Box<dyn Error>>` - The parsed number on success, or a boxed error on failure.
-pub fn read_number_or_create(path: &Path) -> Result<usize, Box<dyn Error>> {
+pub fn try_read_number(path: &Path) -> Result<usize, io::Error> {
     // Attempt to read the file's content into a string.
-    match fs::read_to_string(path) {
-        // The file was read successfully
-        Ok(content) => {
-            log::info!("Successfully read file: {}", path.display());
-            // Trim whitespace and parse the content into an usize integer.
-            // If parsing fails, return a custom error.
-            let number = content.trim().parse::<usize>().map_err(|e| {
-                // TODO: map to error type
-                format!(
-                    "Could not parse file content '{}' as a number: {}",
-                    content.trim(),
-                    e
-                )
-            })?;
-            Ok(number)
-        }
-        //  An error occurred while reading
-        Err(error) => {
-            // Check if the error was "File Not Found".
-            if error.kind() == io::ErrorKind::NotFound {
-                log::info!("File not found at {}. Creating it...", path.display());
+    let content = fs::read_to_string(path)?;
+    // The file was read successfully
 
-                // Get the parent directory of the specified path.
-                if let Some(parent_dir) = path.parent() {
-                    // Create the full directory path if it doesn't exist.
-                    // `create_dir_all` is convenient as it won't error if the path already exists.
-                    fs::create_dir_all(parent_dir)?;
-                    log::info!("Ensured directory exists: {}", parent_dir.display());
-                }
-
-                // Create the file and write the default value "1" to it.
-                fs::write(path, "1")?;
-                log::info!("Created and initialized file with '1'.");
-
-                // Since we just created it with "1", we can return 1.
-                Ok(1)
-            } else {
-                Err(Box::new(error))
-            }
+    log::info!("Successfully read file: {}", path.display());
+    // Trim whitespace and parse the content into an usize integer.
+    // If parsing fails, return a custom error.
+    let parts = content.trim().split(" ");
+    for part in parts {
+        let number = part.trim().parse::<usize>();
+        if number.is_ok() {
+            return Ok(number.unwrap());
         }
     }
+    Err(io::Error::other("failed reading  last status"))
 }
 
 pub fn write_yaml<T>(file_name: &str, value: &T) -> io::Result<()>
