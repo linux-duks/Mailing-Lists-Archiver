@@ -111,13 +111,33 @@ impl Worker {
     }
 
     fn handle_group(&mut self, group_name: String) -> nntp::Result<()> {
-        let read_status: ReadStatus = file_utils::read_yaml::<ReadStatus>(
+        let read_status: ReadStatus = match file_utils::read_yaml::<ReadStatus>(
             format!(
                 "{}/{}/__last_article_number",
                 self.base_output_path, group_name
             )
             .as_str(),
-        )?;
+        ) {
+            Ok(r) => r,
+            Err(e) => {
+                log::warn!("Error reading status:  {e}");
+                // fallback to old format
+                // TODO: remove fallback when all files migrated, change to abort or reset cursor
+                let last_article_number = file_utils::read_number_or_create(Path::new(
+                    format!(
+                        "{}/{}/__last_article_number",
+                        self.base_output_path, group_name
+                    )
+                    .as_str(),
+                ))
+                .unwrap() as usize;
+
+                ReadStatus {
+                    last_email: last_article_number,
+                    timestamp: chrono::Utc::now(),
+                }
+            }
+        };
 
         let last_article_number = read_status.last_email;
 
