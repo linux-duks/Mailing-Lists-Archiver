@@ -5,9 +5,16 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0"
-chrono = { version = "0.4", default-features = false, features = ["std", "now", "serde"] }
+chrono = { version = "0.4", default-features = false, features = [
+	"std",
+	"now",
+	"serde",
+] }
 clap = { version = "4.5", features = ["derive"] }
-config = { version = "0.15", default-features = false, features = ["json", "yaml"] }
+config = { version = "0.15", default-features = false, features = [
+	"json",
+	"yaml",
+] }
 crossbeam-channel = "0.5"
 env_logger = { version = "0.11", features = ["kv"] }
 glob = "0.3"
@@ -17,3 +24,12 @@ nntp = { path = "./rust-nntp" }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 thiserror = "2.0"
+
+[profile.release]
+lto = "fat"
+opt-level = 3
+debug = false
+panic = "abort"
+incremental = false
+codegen-units = 1
+rpath = false
