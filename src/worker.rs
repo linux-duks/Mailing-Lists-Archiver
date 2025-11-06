@@ -137,7 +137,6 @@ impl Worker {
 
                 let read_status = ReadStatus {
                     last_email: last_article_number,
-                    timestamp: chrono::Utc::now().round_subsecs(0),
                 };
 
                 // write ReadStatus
@@ -269,7 +268,6 @@ impl Worker {
                         .as_str(),
                         &ReadStatus {
                             last_email: current_mail,
-                            timestamp: chrono::Utc::now().round_subsecs(0),
                         },
                     )?;
                 }
@@ -521,5 +519,4 @@ impl Scheduler {
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 struct ReadStatus {
     pub last_email: usize,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
 }
