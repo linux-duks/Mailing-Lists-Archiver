@@ -406,11 +406,14 @@ impl Scheduler {
                         }
                         Err(err) => {
                             // TODO: use this to reschedule
-                            log::warn!("Consumme returned an error : {err}");
+                            log::warn!("Consummer returned an error : {err}");
+                            std::thread::sleep(Duration::from_secs(1));
                         }
                     };
                 }
             });
+            // space out thread creation (to prevent multiple connections oppening at once)
+            std::thread::sleep(Duration::from_secs(2));
         }
 
         loop {
