@@ -1,5 +1,6 @@
 use crate::errors;
 use crate::file_utils;
+use chrono::SubsecRound;
 use crossbeam_channel::{TryRecvError, bounded, unbounded};
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
@@ -134,7 +135,7 @@ impl Worker {
 
                 let read_status = ReadStatus {
                     last_email: last_article_number,
-                    timestamp: chrono::Utc::now(),
+                    timestamp: chrono::Utc::now().round_subsecs(0),
                 };
 
                 // write ReadStatus
@@ -266,7 +267,7 @@ impl Worker {
                         .as_str(),
                         &ReadStatus {
                             last_email: current_mail,
-                            timestamp: chrono::Utc::now(),
+                            timestamp: chrono::Utc::now().round_subsecs(0),
                         },
                     )?;
                 }
