@@ -1,5 +1,8 @@
 import re
 from mlh_parser.constants import *
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def set_value_dict(data: dict, key: str, value: str):
@@ -155,7 +158,7 @@ def parse_email_txt_to_dict(text: str) -> object:
     try:
         data["code"] = "\n".join(extract_patches(data["raw_body"]))
     except Exception as e:
-        print(data["raw_body"])
+        logger.error("Body when failure appeared: \n %s", data["raw_body"])
         raise e
 
     data = filter_data(data)

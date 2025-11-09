@@ -4,6 +4,7 @@ import re
 import polars as pl
 from dateutil import parser
 from tqdm import tqdm
+import logging
 
 from mlh_parser.parser_algorithm import parse_email_txt_to_dict
 from mlh_parser.constants import (
@@ -11,6 +12,8 @@ from mlh_parser.constants import (
     REDO_FAILED_PARSES,
     SINGLE_VALUED_COLS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def parse_mail_at(mailing_list, input_dir_path, output_dir_path):
@@ -31,7 +34,7 @@ def parse_mail_at(mailing_list, input_dir_path, output_dir_path):
     all_parsed = pl.DataFrame(schema=PARQUET_COLS_SCHEMA)
 
     if not os.path.isdir(list_output_path):
-        print("First parse of list", mailing_list)
+        logger.info(f"First parse of list '{mailing_list}'")
 
         if not os.path.isdir(PARQUET_DIR_PATH):
             os.mkdir(PARQUET_DIR_PATH)
@@ -80,7 +83,8 @@ def parse_mail_at(mailing_list, input_dir_path, output_dir_path):
             continue
 
         email_as_df = pl.DataFrame(email_as_dict, schema=PARQUET_COLS_SCHEMA)
-        email_as_df = email_as_df.with_columns(  # Let's keep our datetimes naive
+        email_as_df = email_as_df.with_columns(
+            # Let's keep our datetimes naive
             pl.col("date").dt.replace_time_zone(None)
         )
 
@@ -95,7 +99,7 @@ def parse_mail_at(mailing_list, input_dir_path, output_dir_path):
     all_parsed.extend(newly_parsed)
     all_parsed = all_parsed.drop("index")
     all_parsed.write_parquet(parquet_path)
-    print("Saved all parsed mail on list", mailing_list)
+    logger.info(f"Saved all parsed mail on list '{mailing_list}'")
 
 
 def post_process_parsed_mail(email_as_dict: dict):
@@ -205,8 +209,8 @@ def save_unsuccessful_parse(
     to_save += "\n" + "=" * 30 + " Exception:\n"
     to_save += str(parsing_error)
 
-    print("Error when parsing file", email_name, "of list", mailing_list)
-    print(parsing_error)
+    logger.error(f"Error when parsing file '{email_name}' of list '{mailing_list}'")
+    logger.error(parsing_error)
 
     with open(
         error_output_path + "/" + email_name, "w", encoding="utf-8"

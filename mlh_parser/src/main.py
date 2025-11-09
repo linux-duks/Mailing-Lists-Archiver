@@ -1,10 +1,22 @@
 from multiprocessing import Pool
 import os
+import logging
 
 from mlh_parser.parser import parse_mail_at
 from mlh_parser.constants import (
     N_PROC,
     LISTS_TO_PARSE,
+)
+
+DEBUG = os.getenv("DEBUG", "false")
+level = logging.INFO
+if DEBUG != "false":
+    level = logging.DEBUG
+
+logging.basicConfig(
+    level=level,
+    format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
 )
 
 
