@@ -10,16 +10,13 @@ PARQUET_COLS_SCHEMA = {
     "in-reply-to": pl.String,
     "references": pl.List(pl.String),
     "x-mailing-list": pl.String,
-    "body": pl.String,
     "trailers": pl.List(
         pl.Struct({"attribution": pl.String, "identification": pl.String})
     ),
-    "code": pl.String,
+    "code": pl.List(pl.String),
     "raw_body": pl.String,
 }
 
-BEFORE_SIGNED = "body"
-AFTER_SIGNED = "code"
 SIGNED_BLOCK = "trailers"
 
 SINGLE_VALUED_COLS = [
@@ -30,8 +27,7 @@ SINGLE_VALUED_COLS = [
     "message-id",
     "in-reply-to",
     "x-mailing-list",
-    "body",
-    "code",
+    "raw_body",
 ]
 
 N_PROC = 4
@@ -52,8 +48,7 @@ KEYS_MASK = [
     "in-reply-to",
     "references",
     "x-mailing-list",
-    "raw_body",
-    BEFORE_SIGNED,
     SIGNED_BLOCK,
-    AFTER_SIGNED,
+    "code",
+    "raw_body",
 ]

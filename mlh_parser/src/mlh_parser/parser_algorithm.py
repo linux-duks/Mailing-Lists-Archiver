@@ -94,38 +94,46 @@ def extract_attributions(commit_message) -> (list[dict], list[str]):
     return attributions
 
 
-signed_block_regex = r"^\S+-By: [\S\s]* <\S+@\S+>"
+def extract_patches(email_body) -> list[str]:
+    patches = []
+    # a few regex options that will match a few styles found in patches
+    regexes = [
+        r"(^---$[\s\S]*?^--\s*\n+^.*$)",
+        r"(^---$[\s\S]*?^--[\s=]*$\n+^.*$)",
+        r"(diff --git[\s\S]*?^--\s*\n+^.*$)",
+        r"(^---$[\s\S]*?^--*[\S\s=]*$\n+^.*$)",
+    ]
+    for pattern in regexes:
+        op = re.compile(
+            pattern,
+            re.MULTILINE | re.IGNORECASE,
+        )
 
+        # Use finditer to get all non-overlapping matches
+        matches = op.finditer(email_body)
+        for match in matches:
+            value = match.group(0).strip()
+            if value:
+                patches.append(
+                    value,
+                )
+        # if there is a match, return it.
+        # Otherwise, try the next regex
+        if patches:
+            return patches
 
-def parse_body_by_line(data: dict, line: str, body_state: dict):
-    # TODO: fix code detection
-    if body_state["body_state"] == "before_signed" and re.match(
-        signed_block_regex, line, re.IGNORECASE
-    ):
-        body_state["body_state"] = "signed_block"
-
-    elif body_state["body_state"] == "signed_block":
-        if not re.match(r"^\S+-By: [\S\s]* <\S+@\S+>", line, re.IGNORECASE):
-            body_state["body_state"] = "after_signed"
-            set_value_dict(data, AFTER_SIGNED, line)
-
-    elif body_state["body_state"] == "before_signed":
-        if not BEFORE_SIGNED in data:
-            data.setdefault(BEFORE_SIGNED, "")
-        data[BEFORE_SIGNED] += line + "\n"
-
-    elif body_state["body_state"] == "after_signed":
-        if not AFTER_SIGNED in data:
-            data.setdefault(AFTER_SIGNED, "")
-        data[AFTER_SIGNED] += line + "\n"
+        # if no match was found, return empty list (for calrity)
+    match = re.search(r"^diff", email_body, re.MULTILINE)
+    return []
 
 
 def parse_email_txt_to_dict(text: str) -> object:
     data = {}
     current_key = None
     lines = text.splitlines()
-    parser_state = {"is_body": False, "body_state": "before_signed"}
+    parser_state = {"is_body": False}
     data["raw_body"] = ""
+    data["code"] = []
 
     raw_body_lines = []
 
@@ -137,14 +145,18 @@ def parse_email_txt_to_dict(text: str) -> object:
 
         if parser_state["is_body"]:
             raw_body_lines.append(line)
-            parse_body_by_line(data, line, parser_state)
         else:
             current_key = parse_header_by_line(data, line, current_key)
 
     # read trailers from the raw body
     data["raw_body"] = "\n".join(raw_body_lines)
-    attributions = extract_attributions(data["raw_body"])
-    data[SIGNED_BLOCK] = attributions
+    data[SIGNED_BLOCK] = extract_attributions(data["raw_body"])
+
+    try:
+        data["code"] = "\n".join(extract_patches(data["raw_body"]))
+    except Exception as e:
+        print(data["raw_body"])
+        raise e
 
     data = filter_data(data)
 
