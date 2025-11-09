@@ -1,0 +1,128 @@
+from multiprocessing import Pool
+import os
+import polars as pl
+import hashlib
+import logging
+
+from constants import N_PROC, LISTS_TO_PARSE, ANONYMIZE_COLUMNS, ANONYMIZE_MAP
+
+
+DEBUG = os.getenv("DEBUG", "false")
+level = logging.INFO
+if DEBUG != "false":
+    level = logging.DEBUG
+
+logging.basicConfig(
+    level=level,
+    format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
+
+logger = logging.getLogger(__name__)
+
+
+# TODO: move to config location
+INPUT_DIR_PATH = os.environ["INPUT_DIR"]
+OUTPUT_DIR_PATH = os.environ["OUTPUT_DIR"]
+
+
+def parse_mail_at(mailing_list):
+    """
+    Parses the emails from a single specified list,
+    to be found in INPUT_DIR_PATH/mailing_list
+    """
+
+    input_path = INPUT_DIR_PATH + "/" + mailing_list
+    outout_path = OUTPUT_DIR_PATH + "/" + mailing_list
+
+    try:
+        df = pl.read_parquet(input_path)
+        if len(df) == 0:
+            return
+        for col in ANONYMIZE_COLUMNS:
+            logger.info(f"Running {col}")
+            df = df.with_columns(
+                pl.col(col)
+                .map_elements(lambda x: anonymizer(x), return_dtype=pl.self_dtype())
+                .alias(col),
+            )
+
+        for col in ANONYMIZE_MAP:
+            col_parts = col.split(".")
+            logger.info(
+                f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
+            )
+            df = df.with_columns(
+                pl.col(col_parts[0])
+                .map_elements(
+                    lambda x: anonymize_map(x, col_parts[1]),
+                    return_dtype=pl.self_dtype(),
+                )
+                .alias(col_parts[0]),
+            )
+        logger.info(f"Writing {outout_path}")
+
+        os.makedirs(outout_path, exist_ok=True)
+        df.write_parquet(outout_path + "/data.parquet")
+    except Exception as e:
+        raise (e)
+
+
+def generate_sha1_hash(input_string):
+    encoded_string = input_string.encode("utf-8")
+    # Create an SHA-1 hash object
+    sha1_hash_object = hashlib.sha1()
+    sha1_hash_object.update(encoded_string)
+    # Get the hexadecimal representation of the digest
+    hex_digest = sha1_hash_object.hexdigest()
+    return hex_digest
+
+
+def anonymize_map(col, map_key):
+    if hasattr(col, "__iter__"):
+        parts = len(col)
+        newcol = [{}] * parts
+        for part_i in range(0, parts):
+            part = col[part_i]
+            if DEBUG != "false":
+                logger.debug(
+                    f"changing part {map_key} ({part[map_key]}) to ({anonymizer(part[map_key])})"
+                )
+            # assign back to map
+            part[map_key] = anonymizer(part[map_key])
+            newcol[part_i] = part
+        return newcol
+    elif isinstance(col, dict):
+        newcol = {}
+        newcol[map_key] = anonymizer(col[map_key])
+        return newcol
+    else:
+        raise "Usupported type"
+
+
+def anonymizer(col):
+    if isinstance(col, str):
+        return generate_sha1_hash(col)
+    if hasattr(col, "__iter__"):
+        return [generate_sha1_hash(val) for val in col]
+    else:
+        raise Exception(f"Unmapped type for {type(col)}")
+
+
+def main():
+    p = Pool(N_PROC)
+
+    if len(LISTS_TO_PARSE) > 0:
+        p.map(parse_mail_at, LISTS_TO_PARSE)
+    else:
+        p.map(parse_mail_at, os.listdir(INPUT_DIR_PATH))
+
+
+# for debugging only
+def sequential():
+    for mail_l in os.listdir(INPUT_DIR_PATH):
+        parse_mail_at(mail_l)
+
+
+if __name__ == "__main__":
+    main()

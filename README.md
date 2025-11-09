@@ -5,6 +5,9 @@ This is in active development. It currently supports reading from NNTP endpoints
 
 # Usage
 
+To compile this program, use the `make build` command. The rust compiler with the `cargo` utility is needed.
+If not available, the makefile will use `podman` or `docker` and build the program using the container image for the rust compiler.
+
 The most basic way to run this program, is to provide the NNTP Hostname and port via env variables. `NNTP_HOSTNAME="rcpassos.me" NNTP_PORT=119 cargo run`, or via arguments : `cargo run -H rcpassos.me -p 119` (note: this website is not a NNTP server).
 The list of available news groups in the server will be provided for selection.
 
@@ -45,7 +48,20 @@ group_lists:
   - dev.rcpassos.me.lists.iommu
 ```
 
-## Implemantation
+## Implementation
 
 This is the basic algorithm used by this script
 ![fluxogram](./docs/fluxogram.svg)
+
+# Email Parser
+
+Used to parse the output emails from the Archiver into a columnar parquet dataset
+
+## Usage
+
+Run the `make parse` command.
+It requires least `podman/podman-compose` or `docker/docker-compose`.
+
+The parsed emails will be saved in a parquet formatted archive (using hive partitioning on the name of the mailing lists) in the `parser_output/parsed/` directory.
+
+Incorrectly parsed email will be `parser_output/<mailing_list>/errors` directory.

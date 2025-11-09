@@ -1,0 +1,15 @@
+name: anonymizer
+
+services:
+  parser:
+    build:
+      context: .
+      dockerfile: Containerfile
+    environment:
+      INPUT_DIR: "/input"
+      OUTPUT_DIR: "/output"
+    stdin_open: true
+    user: "${UID}:${GID}"
+    volumes:
+      - ../parser_output/parsed/:/input:z
+      - ../anonymizer_output:/output:z
