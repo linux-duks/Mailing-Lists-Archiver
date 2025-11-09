@@ -21,7 +21,6 @@ SIGNED_BLOCK = "trailers"
 
 SINGLE_VALUED_COLS = [
     "from",
-    "to",
     "subject",
     "date",
     "message-id",
