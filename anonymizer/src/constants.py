@@ -6,5 +6,8 @@ ANONYMIZE_COLUMNS = [
     "from",
     "to",
     "cc",
-    "trailers",
+]
+
+ANONYMIZE_MAP = [
+    "trailers.identification",
 ]
