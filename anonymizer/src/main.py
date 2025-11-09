@@ -63,7 +63,7 @@ def parse_mail_at(mailing_list):
         logger.info(f"Writing {outout_path}")
 
         os.makedirs(outout_path, exist_ok=True)
-        df.write_parquet(outout_path + "/data.parquet")
+        df.write_parquet(outout_path + "/data.parquet",compression="zstd", compression_level=22)
     except Exception as e:
         raise (e)
 
