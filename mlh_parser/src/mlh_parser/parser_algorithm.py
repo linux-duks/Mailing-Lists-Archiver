@@ -156,7 +156,7 @@ def parse_email_txt_to_dict(text: str) -> object:
     data[SIGNED_BLOCK] = extract_attributions(data["raw_body"])
 
     try:
-        data["code"] = "\n".join(extract_patches(data["raw_body"]))
+        data["code"] = extract_patches(data["raw_body"])
     except Exception as e:
         logger.error("Body when failure appeared: \n %s", data["raw_body"])
         raise e
