@@ -1,0 +1,16 @@
+name: mlh_parser
+
+services:
+  parser:
+    build:
+      context: .
+      dockerfile: Containerfile
+    environment:
+      INPUT_DIR: "/parser/input"
+      OUTPUT_DIR: "/parser/output"
+    stdin_open: true
+    user: "${UID}:${GID}"
+    volumes:
+      - ../output:/parser/input:z
+      - ../parser_output:/parser/output:z
+
