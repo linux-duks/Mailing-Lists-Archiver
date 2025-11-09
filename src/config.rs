@@ -1,10 +1,9 @@
-use crate::range_inputs;
+use crate::{errors::ConfigError, file_utils, range_inputs};
 use clap::{Args, Parser, ValueHint};
 use config::Config;
 use glob::glob;
 use inquire::MultiSelect;
 use std::collections::{HashMap, HashSet};
-use thiserror::Error;
 
 // TODO: test use confique::Config;
 
@@ -71,18 +70,6 @@ pub fn read_config() -> Result<AppConfig, anyhow::Error> {
     Ok(app_config)
 }
 
-#[derive(Error, Debug)]
-pub enum ConfigError {
-    // Io(#[from] io::Error),
-    #[error("invalid list selection. At least one should be configured, or selected in runtime")]
-    ListSelectionEmpty,
-    #[error("configured list(s) not available in server. {} Lists with error: {}", unavailable_lists.len(), unavailable_lists.iter().map(|x| x.to_string() + ",").collect::<String>()
-)]
-    ConfiguredListsNotAvailable { unavailable_lists: Vec<String> },
-    #[error("none of the configured lists are available in server")]
-    AllListsUnavailable,
-}
-
 impl AppConfig {
     /// returns the lists ready to use
     ///
@@ -93,56 +80,71 @@ impl AppConfig {
         &mut self,
         list_options: Vec<String>,
     ) -> Result<Vec<String>, ConfigError> {
+        let mut answer: Vec<String>;
         if self.group_lists.is_none() {
             log::info!("No group_lists defined");
-            let answer = MultiSelect::new("No groups selected. Select them now:", list_options)
+
+            // list of options provides, with "ALL" as first
+            let mut select_options = vec!["ALL".to_string()];
+            select_options.extend(list_options.clone());
+
+            answer = MultiSelect::new("No groups selected. Select them now:", select_options)
                 .prompt()
                 .unwrap_or_else(|_| std::process::exit(0));
+
+            if answer[0] == "ALL" {
+                log::info!("All lists selected");
+                log::debug!("Lists selected: {:#?}", list_options);
+                answer = list_options;
+            }
 
             if answer.is_empty() {
                 log::info!("empty selection");
                 self.group_lists = None;
-                Err(ConfigError::ListSelectionEmpty)
+                return Err(ConfigError::ListSelectionEmpty);
             } else {
                 // save selection to a file
-                // TODO: move fo file_utils
                 let mut selected_lists = HashMap::new();
                 selected_lists.insert("group_lists", answer.clone());
 
-                let f = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(false)
-                    .open("nntp_config_selected_lists.yml")
-                    .expect("Couldn't open file");
-
-                serde_yaml::to_writer(f, &selected_lists).unwrap();
-
-                Ok(answer)
+                match file_utils::write_yaml("nntp_config_selected_lists.yml", &selected_lists) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(ConfigError::Io(e)),
+                }?;
             }
         } else {
             let mut group_lists = self.group_lists.clone().unwrap();
-            group_lists.dedup();
-            let item_set: HashSet<_> = list_options.iter().collect();
-            group_lists.retain(|item| item_set.contains(item));
-            let (valid, invalid): (Vec<_>, Vec<_>) = group_lists
-                .into_iter()
-                .partition(|item| item_set.contains(item));
 
-            if valid.is_empty() {
-                return Err(ConfigError::AllListsUnavailable);
-            }
-            if !invalid.is_empty() {
-                log::warn!(
-                    "Some lists are unavailable: {}",
-                    ConfigError::ConfiguredListsNotAvailable {
-                        unavailable_lists: invalid
-                    }
-                );
-            }
+            // If "ALL" provided, load all lists
+            if group_lists[0] == "ALL" {
+                log::info!("Configured to fetch all lists");
+                log::debug!("Lists selected: {:#?}", list_options);
+                answer = list_options;
+            } else {
+                // or check if lists provided are valid
+                group_lists.dedup();
+                let item_set: HashSet<_> = list_options.iter().collect();
+                group_lists.retain(|item| item_set.contains(item));
+                let (valid, invalid): (Vec<_>, Vec<_>) = group_lists
+                    .into_iter()
+                    .partition(|item| item_set.contains(item));
 
-            Ok(valid)
+                if valid.is_empty() {
+                    return Err(ConfigError::AllListsUnavailable);
+                }
+                if !invalid.is_empty() {
+                    log::warn!(
+                        "Some lists are unavailable: {}",
+                        ConfigError::ConfiguredListsNotAvailable {
+                            unavailable_lists: invalid
+                        }
+                    );
+                }
+                answer = valid;
+            }
         }
+
+        Ok(answer)
     }
 
     pub fn get_article_range(&self) -> Option<impl Iterator<Item = usize>> {
