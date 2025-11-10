@@ -1,5 +1,7 @@
 **/target
 output
 parser_output
+anonymizer_output
+**.tar.gz
 **/__pycache__
 **/*.egg-info
