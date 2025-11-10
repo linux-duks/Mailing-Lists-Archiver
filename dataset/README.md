@@ -17,3 +17,10 @@ run `bash ./decompression_script.sh`
 After this, a `LKML5Ws` should be present in the current directory with all partitions decompressed.
 
 Analyses can be performed targeting a specific partition, such as `list=dev.linux.lists.virtualization`, or with all partitions.
+
+### Example Analyses
+
+In our repository, which contains the software used to create this dataset, we also provide scripts that we used to develop example analyses.
+
+- Notebook Example: [Mailing-Lists-Archiver/analysis/src/experimenting.ipynb](https://archive.softwareheritage.org/swh:1:cnt:e484d0a379b9e3da8f4e3acd696cb4c324682f65;origin=https://github.com/linux-duks/Mailing-Lists-Archiver;anchor=swh:1:rev:133559afe421926d6579370a90fee329fd4d518d;path=/analysis/src/experimenting.ipynb)
+- Script Example: [Mailing-Lists-Archiver/blob/analysis/analysis/src/make_analysis.py](https://archive.softwareheritage.org/swh:1:cnt:b8cab9d1dd1e75e5a1219086bd5cdf8bdfe77943;origin=https://github.com/linux-duks/Mailing-Lists-Archiver;anchor=swh:1:rev:133559afe421926d6579370a90fee329fd4d518d;path=/analysis/src/make_analysis.py)
