@@ -6,6 +6,7 @@ mod config;
 mod errors;
 mod file_utils;
 mod range_inputs;
+mod scheduler;
 mod worker;
 use errors::Result;
 
@@ -34,7 +35,7 @@ fn main() -> Result<()> {
 
     println!("made a selection of {} {:#?}", groups.len(), groups);
 
-    let mut w = worker::Scheduler::new(
+    let mut w = scheduler::Scheduler::new(
         app_config.hostname.clone().unwrap(),
         app_config.port,
         app_config.output_dir.clone(),
