@@ -1,0 +1,76 @@
+{
+	"@context": "https://w3id.org/codemeta/3.0",
+	"type": "SoftwareSourceCode",
+	"author": [
+		{
+			"id": "https://orcid.org/0009-0003-3657-5519",
+			"type": "Person",
+			"affiliation": {
+				"type": "Organization",
+				"name": "University of São Paulo"
+			},
+			"email": "rcpassos@ime.usp.br",
+			"familyName": "Passos",
+			"givenName": "Rafael"
+		},
+		{
+			"id": "https://orcid.org/0009-0004-3899-4087",
+			"type": "Person",
+			"affiliation": {
+				"type": "Organization",
+				"name": "University of São Paulo"
+			},
+			"email": "arthurpilone@ime.usp.br",
+			"familyName": "Pilone",
+			"givenName": "Arthur"
+		},
+		{
+			"id": "orcid-missing",
+			"type": "Person",
+			"affiliation": {
+				"type": "Organization",
+				"name": "University of São Paulo"
+			},
+			"email": "edu.mendes@usp.br",
+			"familyName": "Mendes",
+			"givenName": "Eduardo"
+		},
+		{
+			"id": "https://orcid.org/0009-0000-4639-1578",
+			"type": "Person",
+			"affiliation": {
+				"type": "Organization",
+				"name": "University of São Paulo"
+			},
+			"email": "davidbtadokoro@ime.usp.br",
+			"familyName": "Tadokoro",
+			"givenName": "David"
+		},
+		{
+			"id": "https://orcid.org/0000-0002-8923-2814",
+			"type": "Person",
+			"affiliation": {
+				"type": "Organization",
+				"name": "University of São Paulo"
+			},
+			"email": "paulormm@ime.usp.br",
+			"familyName": "Meirelles",
+			"givenName": "Paulo"
+		}
+	],
+	"codeRepository": "https://github.com/linux-duks/Mailing-Lists-Archiver.git",
+	"dateCreated": "2025-10-11",
+	"description": "The Linux kernel, like other large and long-lived Free Software projects, utilizes mailing lists as the traditional medium for all development, bug reporting, and pivotal discussions on the project's future. However, as a consequence of the decentralized development model used in the Linux kernel, these emails are spread over hundreds of different mailing lists, with different communities and code maintainership models. This paper presents the LKML5Ws dataset. With over 20 million emails from 345 different mailing lists, our massive relational dataset provides a comprehensive overview of the last 20 years of Linux kernel development. Beyond shedding light on the awe-inspiring number of patches, discussions, and contributors involved in the project, our dataset serves as a basis for those interested in studying the intricate and knowledge-dense nature of the Linux kernel development process.",
+	"keywords": [
+		"Linux kernel",
+		"mailing lists",
+		"Free Software development",
+		"Free Software maintainers"
+	],
+	"license": "https://spdx.org/licenses/GPL-3.0",
+	"name": "Mailing Lists Archiver",
+	"operatingSystem": "Linux",
+	"programmingLanguage": "Rust, Python",
+	"version": "1",
+	"issueTracker": "https://github.com/linux-duks/Mailing-Lists-Archiver/issues"
+}
