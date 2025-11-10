@@ -9,7 +9,7 @@ endif
 BINARY_NAME = mailing-lists-archiver
 
 # Define the source path of the compiled binary
-TARGET_PATH = ./target/release/$(BINARY_NAME)
+TARGET_PATH = ./mlh-archiver/target/release/$(BINARY_NAME)
 
 # Define the Docker image to use for building
 DOCKER_IMAGE = rust:1.91
@@ -28,26 +28,27 @@ all: build run
 # - If NO:  It builds using the specified Docker image.
 #
 # After a successful build (either way), it copies the binary
-# from the 'target/release' directory to the project root.
+# from the 'mlh-archiver/target/release' directory to the project root.
 #
 # ------------------------------------------------------------------------------
 .PHONY: build
 build:
-	@if command -v cargo.TODO >/dev/null 2>&1; then \
+	@if command -v cargo >/dev/null 2>&1; then \
 		echo "==> Found Rust toolchain, building natively..."; \
+		cd mlh-archiver && \
 		cargo build --release; \
 	else \
 		echo "==> Rust toolchain not found, building with Docker (Image: $(DOCKER_IMAGE))..."; \
 		$(CONTAINER) run --rm \
 			-it -u $(id -u):$(id -g) \
 			--network=host \
-			-v $(shell pwd):/usr/src/app:z \
+			-v ./mlh-archiver:/usr/src/app:z \
 			-w /usr/src/app \
 			$(DOCKER_IMAGE) \
 			cargo build --release; \
 	fi
-	@echo "==> Copying binary './$(BINARY_NAME)' from target..."
-	@cp $(TARGET_PATH) ./$(BINARY_NAME)
+	@echo "==> Copying binary '$(BINARY_NAME)' from target..."
+	cp $(TARGET_PATH) ./$(BINARY_NAME)
 
 # ------------------------------------------------------------------------------
 # UTILITY TARGETS
