@@ -8,7 +8,7 @@ import re
 
 sns.set_style("whitegrid")
 
-LISTS_OF_INTEREST = ["org.freedesktop.lists.amd-gfx","org.kernel.vger.linux-iio","org.kernel.vger.linux-sound"]
+LISTS_OF_INTEREST = ["org.freedesktop.lists.amd-gfx", "org.freedesktop.lists.intel-gfx", "org.kernel.vger.linux-iio", "org.kernel.vger.rust-for-linux"]
 
 df = pl.read_parquet("/input/list=" + LISTS_OF_INTEREST[0] + "/list_data.parquet")
 df = df.with_columns(pl.lit(LISTS_OF_INTEREST[0]).alias("list"))
