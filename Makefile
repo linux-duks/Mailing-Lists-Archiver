@@ -100,6 +100,18 @@ anonymize:
 		cd anonymizer && $(CONTAINER)-compose up; \
 	fi
 
+.PHONY: analysis 
+analysis:
+	@if [ ! -d "parser_output/parsed" ] || [ -n "$(ls "parser_output/parsed")" ]; then \
+		echo "==> Error: 'parser_output/parsed' directory is missing or empty."; \
+		echo "==> Please run the parser first to analyse the dataset."; \
+		exit 1; \
+	else \
+		echo "==> Found files in 'parser_output/parsed'. Changing to 'analysis' directory..."; \
+		cd analysis && $(CONTAINER)-compose up; \
+	fi
+
+
 
 debug-parser:
 	cd mlh_parser && INPUT_DIR="../output" OUTPUT_DIR="../parser_output" uv run src/main.py
