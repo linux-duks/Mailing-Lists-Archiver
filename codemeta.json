@@ -25,7 +25,7 @@
 			"givenName": "Arthur"
 		},
 		{
-			"id": "orcid-missing",
+			"id": "https://orcid.org/0009-0000-2657-3200",
 			"type": "Person",
 			"affiliation": {
 				"type": "Organization",
