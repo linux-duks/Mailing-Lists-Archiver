@@ -65,3 +65,14 @@ It requires least `podman/podman-compose` or `docker/docker-compose`.
 The parsed emails will be saved in a parquet formatted archive (using hive partitioning on the name of the mailing lists) in the `parser_output/parsed/` directory.
 
 Incorrectly parsed email will be `parser_output/<mailing_list>/errors` directory.
+
+# Anonymizer
+
+To pseudo-anonimize the user identification from emails, run `make anonymize`. It expects the base non-anonimized dataset to be in the default `parser_output/parsed` folder, but this can be changed in the compose.yaml file.
+
+This script will replace user identification by SHA1 digests, and produce a more compressed version of the dataset under the `anonymizer_output` folder.
+
+# Example Analysis
+
+There are example analyses that were used during research in the [./analysis](./analysis) folder.
+They can be run with `make analysis`. The output will be stored in [./analysis/results/](./analysis/results/) folder.
