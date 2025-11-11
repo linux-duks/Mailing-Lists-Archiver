@@ -1,7 +1,9 @@
 [project]
 name = "mlh-mail-annonimizer"
 version = "0.0.1"
-dependencies = ["polars~=1.35"]
+dependencies = [
+    "polars~=1.35",
+]
 
 requires-python = ">=3.12"
 [tool.uv]
