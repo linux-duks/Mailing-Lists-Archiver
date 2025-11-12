@@ -1,12 +1,14 @@
-name: Parser Test
+name: Python Test
 
-on:
-  pull_request:
-  workflow_dispatch:
+workflow_call:
+  inputs:
+    path:
+      required: true
+      type: string
 
 jobs:
-  parser-tests:
-    name: parser-tests
+  python-tests:
+    name: Python Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -26,7 +28,7 @@ jobs:
         run: uv tool install nox
 
       - name: Install the project
-        run: cd mlh_parser && uv sync --locked --all-extras --dev
+        run: cd ${{ inputs.path }}  && uv sync --locked --all-extras --dev
 
       - name: Run tests
-        run: cd mlh_parser && uv tool run nox
+        run: cd ${{ inputs.path }} && uv tool run nox
