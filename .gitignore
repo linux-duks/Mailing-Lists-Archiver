@@ -2,6 +2,7 @@
 output
 parser_output
 anonymizer_output
+nohup.out
 **.tar.gz
 **/__pycache__
 **/*.egg-info

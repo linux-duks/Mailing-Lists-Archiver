@@ -190,7 +190,7 @@ def email_previously_parsed(all_parsed, email_id) -> int | None:
     if filter_res.shape[0] == 0:
         return None
     elif filter_res.shape[0] > 1:
-        raise Exception("Message-ID conflict on parquet databse for id " + email_id)
+        raise Exception("Message-ID conflict on parquet database for id " + email_id)
 
     return filter_res[0, "index"]
 
