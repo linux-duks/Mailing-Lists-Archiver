@@ -51,12 +51,13 @@ impl Scheduler {
 
     pub fn run(&mut self) -> crate::Result<()> {
         // start worker threads
-        for i in 0..self.nthreds {
-            log::info!("Stating worker thread {i}");
+        for id in 0..self.nthreds {
+            log::debug!("Stating worker thread {id}");
 
             let receiver = self.task_channel.1.clone();
 
             let mut worker = worker::Worker::new(
+                id,
                 self.hostname.clone(),
                 self.port,
                 self.base_output_path.clone(),
@@ -96,6 +97,7 @@ impl Scheduler {
     pub fn run_range(&mut self, range: impl Iterator<Item = usize>) -> crate::Result<()> {
         let receiver = self.task_channel.1.clone();
         let mut worker = worker::Worker::new(
+            0,
             self.hostname.clone(),
             self.port,
             self.base_output_path.clone(),
