@@ -1,0 +1,6 @@
+[files]
+ignore-vcs = true
+ignore-hidden = true
+ignore-files = true
+ignore-dot = true
+extend-exclude = ["mlh_parser/tests/**"]
