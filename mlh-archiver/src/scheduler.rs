@@ -67,20 +67,20 @@ impl Scheduler {
             // Spin up another thread
             thread::spawn(move || {
                 loop {
-                    match worker.comsume() {
+                    match worker.consume() {
                         Ok(_) => {
                             log::info!("Consumme finished");
                             break;
                         }
                         Err(err) => {
                             // TODO: use this to reschedule
-                            log::warn!("Consummer returned an error : {err}");
+                            log::warn!("Consumer returned an error : {err}");
                             std::thread::sleep(Duration::from_secs(1));
                         }
                     };
                 }
             });
-            // space out thread creation (to prevent multiple connections oppening at once)
+            // space out thread creation (to prevent multiple connections opening at once)
             std::thread::sleep(Duration::from_secs(2));
         }
 

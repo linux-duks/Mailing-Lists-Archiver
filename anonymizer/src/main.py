@@ -33,7 +33,7 @@ def parse_mail_at(mailing_list):
     """
 
     input_path = INPUT_DIR_PATH + "/" + mailing_list
-    outout_path = OUTPUT_DIR_PATH + "/" + mailing_list
+    output_path = OUTPUT_DIR_PATH + "/" + mailing_list
 
     try:
         df = pl.read_parquet(input_path)
@@ -60,10 +60,10 @@ def parse_mail_at(mailing_list):
                 )
                 .alias(col_parts[0]),
             )
-        logger.info(f"Writing {outout_path}")
+        logger.info(f"Writing {output_path}")
 
-        os.makedirs(outout_path, exist_ok=True)
-        df.write_parquet(outout_path + "/data.parquet",compression="zstd", compression_level=22)
+        os.makedirs(output_path, exist_ok=True)
+        df.write_parquet(output_path + "/data.parquet",compression="zstd", compression_level=22)
     except Exception as e:
         raise (e)
 
@@ -97,7 +97,7 @@ def anonymize_map(col, map_key):
         newcol[map_key] = anonymizer(col[map_key])
         return newcol
     else:
-        raise "Usupported type"
+        raise "Unsupported type"
 
 
 def anonymizer(col):

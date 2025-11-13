@@ -68,7 +68,7 @@ Incorrectly parsed email will be `parser_output/<mailing_list>/errors` directory
 
 # Anonymizer
 
-To pseudo-anonimize the user identification from emails, run `make anonymize`. It expects the base non-anonimized dataset to be in the default `parser_output/parsed` folder, but this can be changed in the compose.yaml file.
+To pseudo-anonymize the user identification from emails, run `make anonymize`. It expects the base non-anonymized dataset to be in the default `parser_output/parsed` folder, but this can be changed in the compose.yaml file.
 
 This script will replace user identification by SHA1 digests, and produce a more compressed version of the dataset under the `anonymizer_output` folder.
 

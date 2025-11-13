@@ -65,7 +65,7 @@ impl Worker {
         }
     }
 
-    pub fn comsume(&mut self) -> crate::Result<()> {
+    pub fn consume(&mut self) -> crate::Result<()> {
         log::info!("W{}: started consumming tasks", self.id);
         loop {
             if self.needs_reconnection {
@@ -107,7 +107,7 @@ impl Worker {
                     );
                 }
 
-                // when an error happends, force a reconnection
+                // when an error happens, force a reconnection
                 self.needs_reconnection = true;
                 // attempt to close connection
                 match self.nntp_stream.quit() {
@@ -195,7 +195,7 @@ impl Worker {
                         group.high as usize,
                     ) {
                         Ok(_) => {
-                            // if successfull, reschedule
+                            // if successful, reschedule
                             self.response_channel
                                 .0
                                 .send(WorkerGroupResult::Ok(group_name.clone()))
@@ -317,7 +317,7 @@ impl Worker {
                         }
                         _ => return Err(e),
                     }
-                    // // TODO: should the program singnal a need to reconnect here or upstream ?
+                    // // TODO: should the program signal a need to reconnect here or upstream ?
                     // return Err(e);
                 }
             }

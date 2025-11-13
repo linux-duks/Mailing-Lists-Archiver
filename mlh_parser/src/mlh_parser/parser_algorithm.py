@@ -38,9 +38,9 @@ def filter_data(data: dict) -> dict:
 
 
 def parse_header_by_line(data: dict, line: str, current_key: str) -> str:
-    exclude_inicial_caracters = (" ", "\t")
+    exclude_initial_characters = (" ", "\t")
 
-    if ":" in line and not (line.startswith(exclude_inicial_caracters)):
+    if ":" in line and not (line.startswith(exclude_initial_characters)):
         key, value = line.split(":", 1)
         key = key.strip().lower()
         value = value.strip()
@@ -125,7 +125,7 @@ def extract_patches(email_body) -> list[str]:
         if patches:
             return patches
 
-        # if no match was found, return empty list (for calrity)
+        # if no match was found, return empty list (for clarity)
     match = re.search(r"^diff", email_body, re.MULTILINE)
     return []
 

@@ -13,8 +13,7 @@ pub fn write_lines_file(path: &Path, lines: Vec<String>) -> io::Result<()> {
 
     lines
         .iter()
-        .map(|line| write!(file, "{}", line.as_str()).expect("Cannot write to file"))
-        .collect::<Vec<_>>();
+        .for_each(|line| write!(file, "{}", line.as_str()).expect("Cannot write to file"));
 
     file.flush()?;
 
@@ -59,8 +58,8 @@ pub fn try_read_number(path: &Path) -> Result<usize, io::Error> {
     let parts = content.trim().split(" ");
     for part in parts {
         let number = part.trim().parse::<usize>();
-        if number.is_ok() {
-            return Ok(number.unwrap());
+        if let Ok(num) = number {
+            return Ok(num);
         }
     }
     Err(io::Error::other("failed reading  last status"))
