@@ -12,7 +12,7 @@ BINARY_NAME = mailing-lists-archiver
 TARGET_PATH = ./mlh-archiver/target/release/$(BINARY_NAME)
 
 # Define the Docker image to use for building
-DOCKER_IMAGE = rust:1.91
+DOCKER_IMAGE = docker.io/rust:1.91-slim
 
 # ==============================================================================
 
