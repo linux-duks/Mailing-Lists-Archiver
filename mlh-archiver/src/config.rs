@@ -38,10 +38,7 @@ pub struct AppConfig {
 pub fn read_config() -> Result<AppConfig, anyhow::Error> {
     let opts = Opts::parse();
 
-    let base_config = match opts.app_config {
-        Some(app_config) => app_config,
-        None => AppConfig::default(),
-    };
+    let base_config = opts.app_config.unwrap_or_default();
 
     let defaults = Config::try_from(&base_config).unwrap();
 

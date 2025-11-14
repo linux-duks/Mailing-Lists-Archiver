@@ -10,16 +10,14 @@ pub enum Error {
     Unknown,
     #[error(transparent)]
     Io(#[from] io::Error),
+
+    #[allow(clippy::upper_case_acronyms)]
     #[error(transparent)]
     NNTP(#[from] nntp::NNTPError),
-
-    #[error("Failed reconnecting to NNTP. Exceeded attempts")]
-    NNTPReconnectionError,
 }
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
-    // Io(#[from] io::Error),
     #[error("invalid list selection. At least one should be configured, or selected in runtime")]
     ListSelectionEmpty,
     #[error("configured list(s) not available in server. {} Lists with error: {}", unavailable_lists.len(), unavailable_lists.iter().map(|x| x.to_string() + ",").collect::<String>()
