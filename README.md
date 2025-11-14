@@ -3,7 +3,15 @@
 Collect and archive locally all emails from mailing lists.
 This is in active development. It currently supports reading from NNTP endpoints.
 
-# Usage
+This project a few main components:
+
+1. [Archiver](#archiver) : Keep (raw) local copies of emails in from mailing lists
+2. [Mailing List Parser](#mailing-list-parser): Parse the raw copies into a Parquet columnar dataset
+3. [Anonymizer](#anonymizer): Pseudo-anonymize personal identification from the dataset
+
+# Archiver
+
+## Usage
 
 To compile this program, use the `make build` command. The rust compiler with the `cargo` utility is needed.
 If not available, the makefile will use `podman` or `docker` and build the program using the container image for the rust compiler.
@@ -50,10 +58,16 @@ group_lists:
 
 ## Implementation
 
-This is the basic algorithm used by this script
+The archiver is implemented in rust, and uses a NNTP library we forked.
+It is designed to be a multi-thread* process that can keep the local files up-to-date with the articles (emails) available in the NNTP server.
+It is, however, not designed to pull emails as fast as possible, as it could be seen as a malicious our abusive scraping bot.
+
+> *Each thread is able to check one mail-group (mailing list) at a time from the server.
+> A thread will only fetch one email at a time.
+
 ![fluxogram](./docs/fluxogram.svg)
 
-# Email Parser
+# Mailing List Parser
 
 Used to parse the output emails from the Archiver into a columnar parquet dataset
 
