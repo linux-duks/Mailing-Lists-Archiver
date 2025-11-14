@@ -73,9 +73,7 @@ def parse_mail_at(mailing_list, input_dir_path, output_dir_path):
         email_file = io.open(email_path, mode="r", encoding="utf-8")
 
         try:
-            email_as_dict = parse_email_txt_to_dict(email_file.read())
-
-            email_as_dict = post_process_parsed_mail(email_as_dict)
+            email_as_dict = parse_and_process_email(email_file.read())
         except Exception as parsing_error:
             save_unsuccessful_parse(
                 email_file, parsing_error, email_name, mailing_list, error_output_path
@@ -155,10 +153,18 @@ def post_process_parsed_mail(email_as_dict: dict):
 
         email_as_dict["date"] = new_date_time
 
-    for dict_key in email_as_dict:
-        email_as_dict[dict_key] = [email_as_dict[dict_key]]
-
     return email_as_dict
+
+
+def parse_and_process_email(email_file_data) -> dict:
+    """
+    Run parse_email_txt_to_dict and post_process_parsed_mail
+    Post-processes dict containing email fields, parsing
+    multiple valued fields and other non Str fields.
+    """
+    email_as_dict = parse_email_txt_to_dict(email_file_data)
+
+    return post_process_parsed_mail(email_as_dict)
 
 
 def get_email_id(email_file) -> str:
