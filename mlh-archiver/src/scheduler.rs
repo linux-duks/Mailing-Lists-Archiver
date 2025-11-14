@@ -1,6 +1,6 @@
 use crate::errors;
 use crate::worker;
-use crossbeam_channel::{bounded, unbounded};
+use crossbeam_channel::bounded;
 use std::thread;
 use std::{sync::Arc, time::Duration};
 
@@ -16,10 +16,6 @@ pub struct Scheduler {
     task_channel: (
         crossbeam_channel::Sender<String>,
         crossbeam_channel::Receiver<String>,
-    ),
-    response_channel: (
-        crossbeam_channel::Sender<worker::WorkerGroupResult>,
-        crossbeam_channel::Receiver<worker::WorkerGroupResult>,
     ),
 }
 
@@ -45,7 +41,6 @@ impl Scheduler {
             nthreds,
             tasklist: Arc::new(tasklist),
             task_channel: bounded::<String>(nthreds as usize),
-            response_channel: unbounded::<worker::WorkerGroupResult>(),
         }
     }
 
@@ -62,19 +57,18 @@ impl Scheduler {
                 self.port,
                 self.base_output_path.clone(),
                 receiver,
-                self.response_channel.clone(),
             );
             // Spin up another thread
             thread::spawn(move || {
                 loop {
-                    match worker.consume() {
+                    match worker.run() {
                         Ok(_) => {
-                            log::info!("Consumme finished");
+                            log::info!("Worker {id} finished");
                             break;
                         }
                         Err(err) => {
                             // TODO: use this to reschedule
-                            log::warn!("Consumer returned an error : {err}");
+                            log::warn!("Worker {id} returned an error : {err}");
                             std::thread::sleep(Duration::from_secs(1));
                         }
                     };
@@ -84,6 +78,8 @@ impl Scheduler {
             std::thread::sleep(Duration::from_secs(2));
         }
 
+        // TODO: move this to other thread, handle OS signlas in the original thread insted
+        // thread::spawn(move || {
         loop {
             for group_name in self.tasklist.iter() {
                 self.task_channel.0.send(group_name.clone()).unwrap();
@@ -91,6 +87,7 @@ impl Scheduler {
             // interval between checks to task list
             std::thread::sleep(Duration::from_secs(INTERVAL_BETWEEN_RESCANS as u64));
         }
+        // });
     }
 
     // run range does not keep track of lists, just run them once for the defined range
@@ -102,7 +99,6 @@ impl Scheduler {
             self.port,
             self.base_output_path.clone(),
             receiver,
-            self.response_channel.clone(),
         );
 
         match self.tasklist.first() {
