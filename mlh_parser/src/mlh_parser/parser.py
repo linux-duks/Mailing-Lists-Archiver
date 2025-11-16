@@ -6,8 +6,7 @@ from dateutil import parser
 from tqdm import tqdm
 import logging
 
-from mlh_parser.parser_algorithm import (parse_email_txt_to_dict,
-                                         parse_email_bytes_to_dict)
+from mlh_parser.parser_algorithm import parse_email_bytes_to_dict
 from mlh_parser.constants import (
     PARQUET_COLS_SCHEMA,
     REDO_FAILED_PARSES,
@@ -73,8 +72,13 @@ def parse_mail_at(mailing_list, input_dir_path, output_dir_path):
         email_path = list_input_path + "/" + email_name
         email_file = io.open(email_path, mode="r", encoding="utf-8")
         email_file_bytes = io.open(email_path, mode="rb")
+        email_file_bytes = io.open(email_path, mode="rb")
 
         try:
+            # email_as_dict = parse_email_txt_to_dict(email_file.read())
+            email_as_dict = parse_email_bytes_to_dict(email_file_bytes.read())
+
+            email_as_dict = post_process_parsed_mail(email_as_dict)
             # email_as_dict = parse_email_txt_to_dict(email_file.read())
             email_as_dict = parse_email_bytes_to_dict(email_file_bytes.read())
 
@@ -161,13 +165,13 @@ def post_process_parsed_mail(email_as_dict: dict):
     return email_as_dict
 
 
-def parse_and_process_email(email_file_data) -> dict:
+def parse_and_process_email(email_file_data: bytes) -> dict:
     """
     Run parse_email_txt_to_dict and post_process_parsed_mail
     Post-processes dict containing email fields, parsing
     multiple valued fields and other non Str fields.
     """
-    email_as_dict = parse_email_txt_to_dict(email_file_data)
+    email_as_dict = parse_email_bytes_to_dict(email_file_data)
 
     return post_process_parsed_mail(email_as_dict)
 

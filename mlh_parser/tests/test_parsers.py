@@ -37,7 +37,7 @@ real_mail_files = [map_to_files(email_f) for email_f in email_files]
 
 @pytest.mark.parametrize("email_file, code_file, trailers_file", real_mail_files)
 def test_real_mails(email_file, code_file, trailers_file) -> None:
-    mail_text = io.open(email_file, mode="r", encoding="utf-8").read()
+    mail_text = io.open(email_file, mode="rb").read()
     code = eval(io.open(code_file, mode="r", encoding="utf-8").read())
     trailers = eval(io.open(trailers_file, mode="r", encoding="utf-8").read())
 
