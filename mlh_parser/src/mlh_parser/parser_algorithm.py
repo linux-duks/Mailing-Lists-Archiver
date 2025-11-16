@@ -1,35 +1,12 @@
 import re
 from mlh_parser.constants import *
 import logging
+import email
+import email.policy
+import email.parser
+from email.message import EmailMessage
 
 logger = logging.getLogger(__name__)
-
-
-def set_value_dict(data: dict, key: str, value: str):
-    if key in data:
-        if isinstance(data[key], list):
-            data[key].append(value)
-        else:
-            data[key] = [data[key], value]
-
-    else:
-        data[key] = value
-
-
-def value_string_to_list(data: dict, keys: list) -> dict:
-    for key in keys:
-        value_changed = [item.strip() for item in data[key].split(",")]
-        data[key] = value_changed
-
-    return data
-
-
-def value_list_to_string(data: dict) -> dict:
-    for k, v in data.items():
-        if isinstance(v, list):
-            data[k] = ", ".join(map(str, v))
-
-    return data
 
 
 def filter_data(data: dict) -> dict:
@@ -37,29 +14,9 @@ def filter_data(data: dict) -> dict:
     return result_dict
 
 
-def parse_header_by_line(data: dict, line: str, current_key: str) -> str:
-    exclude_initial_characters = (" ", "\t")
-
-    if ":" in line and not (line.startswith(exclude_initial_characters)):
-        key, value = line.split(":", 1)
-        key = key.strip().lower()
-        value = value.strip()
-
-        set_value_dict(data, key, value)
-
-        current_key = key
-    else:
-        if isinstance(data[current_key], list):
-            data[current_key][-1] += " " + line.strip()
-        else:
-            data[current_key] += " " + line.strip()
-
-    return current_key
-
-
 # extract_attributions adapted from duks
 # https://archive.softwareheritage.org/swh:1:cnt:23277d72e0a7a6f76db8542b10ab36e02a1e6006;origin=https://github.com/linux-duks/DUKS;visit=swh:1:snp:7539517b28d48726b43e4ef69332f3168b251aa0;anchor=swh:1:rev:de4af688e88757f0d496c7a16e331845a40d3f1c;path=/scripts/grpc_script.py;lines=82
-def extract_attributions(commit_message) -> (list[dict], list[str]):
+def extract_attributions(commit_message) -> (list[dict] | list[str]):
     """
     Parses a git commit message and extracts all personal attributions.
 
@@ -130,29 +87,36 @@ def extract_patches(email_body) -> list[str]:
     return []
 
 
-def parse_email_txt_to_dict(text: str) -> object:
+def parse_header(msg: EmailMessage, data: dict) -> dict:
+    data = filter_data(msg)
+    return data
+
+
+def parse_raw_body(msg: EmailMessage) -> str:
+    charset = msg.get_content_charset()
+
+    body = msg.get_payload(decode=True)
+    text = ""
+    if body is not None:
+        text = body.decode(charset or "utf-8", errors="replace")
+    else:
+        print("Não há payload decodificável.")
+    
+    return text
+
+
+def parse_email_bytes_to_dict(email_raw: bytes) -> dict:
+
+    policy = email.policy.default
+    msg = email.parser.BytesParser(policy=policy).parsebytes(email_raw)
+    
     data = {}
-    current_key = None
-    lines = text.splitlines()
-    parser_state = {"is_body": False}
     data["raw_body"] = ""
     data["code"] = []
 
-    raw_body_lines = []
+    data = parse_header(msg, data)
+    data["raw_body"] = parse_raw_body(msg)
 
-    # se a linha começar com \n -> começa o corpo do email
-    for line in lines:
-        if not parser_state["is_body"] and not line.strip():
-            parser_state["is_body"] = True
-            continue
-
-        if parser_state["is_body"]:
-            raw_body_lines.append(line)
-        else:
-            current_key = parse_header_by_line(data, line, current_key)
-
-    # read trailers from the raw body
-    data["raw_body"] = "\n".join(raw_body_lines)
     data[SIGNED_BLOCK] = extract_attributions(data["raw_body"])
 
     try:
@@ -163,4 +127,9 @@ def parse_email_txt_to_dict(text: str) -> object:
 
     data = filter_data(data)
 
-    return data
+    result_dict = {}
+
+    for header, value in data.items():
+        result_dict[header] = str(value)
+  
+    return result_dict
