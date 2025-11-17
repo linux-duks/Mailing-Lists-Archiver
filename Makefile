@@ -6,10 +6,10 @@ else
 endif
 
 # Define the name of your binary
-BINARY_NAME = mailing-lists-archiver
+BINARY_NAME = mlh-archiver
 
 # Define the source path of the compiled binary
-TARGET_PATH = ./mlh-archiver/target/release/$(BINARY_NAME)
+TARGET_PATH = ./target/release/$(BINARY_NAME)
 
 # Define the Docker image to use for building
 DOCKER_IMAGE = docker.io/rust:1.91-slim
@@ -47,8 +47,8 @@ build:
 			$(DOCKER_IMAGE) \
 			cargo build --release; \
 	fi
-	@echo "==> Copying binary '$(BINARY_NAME)' from target..."
-	cp $(TARGET_PATH) ./$(BINARY_NAME)
+	@echo "==> Copying binary '$(BINARY_NAME).out' from target..."
+	cp $(TARGET_PATH) ./$(BINARY_NAME).out
 
 # ------------------------------------------------------------------------------
 # UTILITY TARGETS
@@ -59,7 +59,7 @@ build:
 clean:
 	@echo "==> Cleaning up build artifacts..."
 	@cargo clean
-	@rm -f ./$(BINARY_NAME)
+	@rm -f ./$(BINARY_NAME).out
 
 
 # ------------------------------------------------------------------------------
@@ -69,12 +69,12 @@ clean:
 
 .PHONY: run
 run:
-	@if [ ! -f ./$(BINARY_NAME) ]; then \
-		echo "==> Binary './$(BINARY_NAME)' not found. Building first..."; \
+	@if [ ! -f ./$(BINARY_NAME).out ]; then \
+		echo "==> Binary './$(BINARY_NAME).out' not found. Building first..."; \
 		$(MAKE) build; \
 	fi
 	@echo "==> Running application..."
-	@./$(BINARY_NAME)
+	@./$(BINARY_NAME).out
 
 # Target to run the parser
 # Checks if 'output' dir exists and is not empty, then runs docker-compose.
