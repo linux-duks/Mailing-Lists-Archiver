@@ -30,7 +30,7 @@ pub fn check_and_delete_folder(folder_path: String) -> io::Result<()> {
 }
 
 #[test]
-fn test_redis() {
+fn test_read_from_local_nntp_server() {
     println!("loading Containerfile");
     let image = GenericBuildableImage::new("test_nttp_server", "latest")
         .with_dockerfile("./tests/Containerfile")
