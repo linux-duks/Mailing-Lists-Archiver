@@ -28,11 +28,14 @@ pub struct AppConfig {
     #[arg(short, long, default_value = "1")]
     pub nthreads: u8,
 
+    #[arg(short, long, default_value = "true")]
+    pub loop_groups: bool,
+
     #[arg(long)]
-    group_lists: Option<Vec<String>>,
+    pub group_lists: Option<Vec<String>>,
     /// comma separated values, or dash separated ranges, like low-high
     #[arg(long)]
-    article_range: Option<String>,
+    pub article_range: Option<String>,
 }
 
 pub fn read_config() -> Result<AppConfig, anyhow::Error> {

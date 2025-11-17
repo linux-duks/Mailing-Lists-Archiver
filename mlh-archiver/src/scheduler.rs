@@ -12,6 +12,7 @@ pub struct Scheduler {
     port: u16,
     base_output_path: String,
     nthreds: u8,
+    loop_groups: bool,
     tasklist: Arc<Vec<String>>,
     task_channel: (
         crossbeam_channel::Sender<String>,
@@ -25,6 +26,7 @@ impl Scheduler {
         port: u16,
         base_output_path: String,
         nthreds: u8,
+        loop_groups: bool,
         groups: Vec<String>,
     ) -> Scheduler {
         let mut tasklist: Vec<String> = Vec::with_capacity(groups.len());
@@ -39,6 +41,7 @@ impl Scheduler {
             port,
             base_output_path,
             nthreds,
+            loop_groups,
             tasklist: Arc::new(tasklist),
             task_channel: bounded::<String>(nthreds as usize),
         }
@@ -83,6 +86,9 @@ impl Scheduler {
         loop {
             for group_name in self.tasklist.iter() {
                 self.task_channel.0.send(group_name.clone()).unwrap();
+            }
+            if !self.loop_groups {
+                return Ok(());
             }
             // interval between checks to task list
             std::thread::sleep(Duration::from_secs(INTERVAL_BETWEEN_RESCANS as u64));

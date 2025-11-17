@@ -2,13 +2,9 @@
 
 use env_logger::Env;
 
-mod config;
-mod errors;
-mod file_utils;
-mod range_inputs;
-mod scheduler;
-mod worker;
-use errors::Result;
+use mlh_archiver::Result;
+use mlh_archiver::config;
+use mlh_archiver::start;
 
 fn main() -> Result<()> {
     let env = Env::default()
@@ -18,34 +14,5 @@ fn main() -> Result<()> {
     env_logger::init_from_env(env);
 
     let mut app_config = config::read_config().unwrap();
-
-    let mut nntp_stream = worker::connect_to_nntp(format!(
-        "{}:{}",
-        app_config.hostname.clone().unwrap(),
-        app_config.port
-    ))?;
-
-    let list_options = nntp_stream.list().unwrap();
-    let groups = app_config
-        .get_group_lists(list_options.iter().map(move |an| an.clone().name).collect())
-        .unwrap();
-
-    // close initial connection to nntp server
-    let _ = nntp_stream.quit();
-
-    println!("made a selection of {} {:#?}", groups.len(), groups);
-
-    let mut w = scheduler::Scheduler::new(
-        app_config.hostname.clone().unwrap(),
-        app_config.port,
-        app_config.output_dir.clone(),
-        app_config.nthreads,
-        groups,
-    );
-    match app_config.get_article_range() {
-        Some(range) => w.run_range(range),
-        None => w.run(),
-    }?;
-
-    Ok(())
+    return start(&mut app_config);
 }
