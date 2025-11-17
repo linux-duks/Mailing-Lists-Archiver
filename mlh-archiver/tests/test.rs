@@ -81,7 +81,7 @@ fn test_redis() {
     println!("Loading list of files");
     let mut found_files = file_list_dir(output_dir.clone());
     // TODO: read file list dynamically from mock db file
-    let mut expeted_files = vec![
+    let mut expected_files = vec![
         "./test_output",
         "./test_output/test.groups.foo",
         "./test_output/test.groups.foo/__last_article_number",
@@ -92,8 +92,8 @@ fn test_redis() {
         "./test_output/test.groups.bar/1.eml",
     ];
     found_files.sort();
-    expeted_files.sort();
-    assert_eq!(found_files, expeted_files);
+    expected_files.sort();
+    assert_eq!(found_files, expected_files);
 
     check_and_delete_folder(output_dir).unwrap();
 }

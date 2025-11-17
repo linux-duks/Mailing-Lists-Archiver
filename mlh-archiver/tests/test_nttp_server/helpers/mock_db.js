@@ -52,7 +52,7 @@ module.exports = function mock_db(nntp, fixture_path) {
       }
     }
 
-    // Yaml data can have unnecesary tail
+    // Yaml data can have unnecessary tail
     if (msg) {
       msg.head = msg.head.trimRight();
       msg.body = msg.body.trimRight();

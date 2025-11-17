@@ -81,7 +81,7 @@ impl Scheduler {
             std::thread::sleep(Duration::from_secs(2));
         }
 
-        // TODO: move this to other thread, handle OS signlas in the original thread insted
+        // TODO: move this to other thread, handle OS signlas in the original thread instead
         // thread::spawn(move || {
         loop {
             for group_name in self.tasklist.iter() {
