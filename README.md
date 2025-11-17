@@ -26,16 +26,17 @@ It will look for nntp_config*.{json,yaml,toml}.
 A custom config file path can be passed with the flag `-c`. Ex: `cargo run  -c other_nntp_config.yaml`
 
 ```bash
-Usage: mailing-lists-archiver [OPTIONS]
+Usage: mlh-archiver [OPTIONS]
 
 Options:
   -c, --config-file <CONFIG_FILE>      [default: nntp_config*]
-  -H, --hostname <HOSTNAME>            
-  -p, --port <PORT>                    [default: 119]
-  -o, --output-dir <OUTPUT_DIR>        [default: ./output]
-  -n, --nthreads <NTHREADS>            [default: 1]
-      --group-lists <GROUP_LISTS>      
-      --article-range <ARTICLE_RANGE>  comma separated values, or dash separated ranges, like low-high
+  -H, --hostname <HOSTNAME>            nntp server domain/ip
+  -p, --port <PORT>                    nntp serrver port [default: 119]
+  -o, --output-dir <OUTPUT_DIR>        where results will be stored [default: ./output]
+  -n, --nthreads <NTHREADS>            Number of worker threads connecting to different lists [default: 1]
+  -l, --loop-groups                    If true, the app will keep running forever. Otherwise, stop after reading all groups
+      --group-lists <GROUP_LISTS>      List of groups to be read. "ALL" will select all lists available. Empty value will prompt a selection in the TUI (and save selected values)
+      --article-range <ARTICLE_RANGE>  (optional). Read a specific range of articles from the first list provided. Comma separated values, or dash separated ranges, like low-high
   -h, --help                           Print help
 ```
 
@@ -51,6 +52,7 @@ hostname: "rcpassos.me"
 port: 119
 nthreads: 2
 output_dir: "./output"
+loop-groups: true
 group_lists:
   - dev.rcpassos.me.lists.gfs2
   - dev.rcpassos.me.lists.iommu

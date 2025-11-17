@@ -19,21 +19,27 @@ pub struct Opts {
 
 #[derive(Debug, Args, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq, Clone)]
 pub struct AppConfig {
+    /// nntp server domain/ip
     #[arg(short = 'H', long)]
     pub hostname: Option<String>,
+    /// nntp serrver port
     #[arg(short, long, default_value = "119")]
     pub port: u16,
     #[arg(short, long, default_value = "./output", value_hint = ValueHint::DirPath)]
+    /// where results will be stored
     pub output_dir: String,
+    /// Number of worker threads connecting to different lists
     #[arg(short, long, default_value = "1")]
     pub nthreads: u8,
-
+    /// If true, the app will keep running forever. Otherwise, stop after reading all groups
     #[arg(short, long, default_value = "true")]
     pub loop_groups: bool,
 
+    /// List of groups to be read. "ALL" will select all lists available.
+    /// Empty value will prompt a selection in the TUI (and save selected values)
     #[arg(long)]
     pub group_lists: Option<Vec<String>>,
-    /// comma separated values, or dash separated ranges, like low-high
+    ///  (optional). Read a specific range of articles from the first list provided. Comma separated values, or dash separated ranges, like low-high
     #[arg(long)]
     pub article_range: Option<String>,
 }
