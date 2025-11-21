@@ -18,6 +18,27 @@ After this, a `LKML5Ws` should be present in the current directory with all part
 
 Analyses can be performed targeting a specific partition, such as `list=dev.linux.lists.virtualization`, or with all partitions.
 
+### Schema
+
+Schema definition of the Columnar dataset:
+
+```
+| Column      | Type            | Description                                                                                          |
+|-------------|-----------------|------------------------------------------------------------------------------------------------------|
+| from        | String          | Email sender                                                                                         |
+| to          | List of Strings | 'To' field recipients                                                                                |
+| cc          | List of Strings |'Cc' field recipients                                                                                 |
+| subject     | String          | Email subject                                                                                        |
+| date        | Datetime        | Timestamp of when the author sent the email                                                          |
+| message-id  | String          | Unique identifier for this email message                                                             |
+| in-reply-to | String          | Message ID of the email replied to, if existent                                                      |
+| references  | List of Strings | Message IDs of other emails referenced by the email                                                  |
+| list        | String          | Mailing list this email was received in                                                              |
+| raw_body    | String          | Complete reproduction of the email body                                                              |
+| code        | List of Strings | List of Diff-like representation of the code changes sent                                            |
+| trailers    | List of Structs | Each signature is parsed to a dictionary with the attribution and the contributor ("identification") |
+```
+
 ### Example Analyses
 
 In our repository, which contains the software used to create this dataset, we also provide scripts that we used to develop example analyses.
