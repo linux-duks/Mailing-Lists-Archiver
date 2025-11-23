@@ -43,5 +43,5 @@ def test_real_mails(email_file, code_file, trailers_file) -> None:
 
     output = parse_and_process_email(mail_text)
 
-    assert output["trailers"] == trailers, f"trailers should match for {email_file}"
-    assert output["code"] == code, f"code should match for {email_file}"
+    assert str(trailers) == output["trailers"], f"trailers should match for {email_file}"
+    assert str(code) == output["code"], f"code should match for {email_file}"

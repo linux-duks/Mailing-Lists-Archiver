@@ -27,14 +27,27 @@ def extract_attributions(commit_message) -> (list[dict] | list[str]):
         list: A list of dictionaries, where each dictionary contains
               'type' (e.g., 'Signed-off-by'), 'name', and 'email' for each attribution found.
     """
-    attributions = []
     # This regex looks for lines starting with "Word-by:"
     # followed by a name (can contain various characters), and then an email in angle brackets.
     # It captures the "Word-by" type, the name, and the email separately.
     # The pattern is compiled with MULTILINE to match '^' at the start of each line,
     # and IGNORECASE to match "Signed-off-by", "signed-off-by", etc.
+
+    attributions = []
+    # Ignore everything below standard email signature marker
+    body = commit_message.split('\n-- \n', 1)[0].strip() + '\n'
+    # Fix some more common copypasta trailer wrapping
+    # Fixes: abcd0123 (foo bar
+    # baz quux)
+    body = re.sub(r'^(\S+:\s+[\da-f]+\s+\([^)]+)\n([^\n]+\))', r'\1 \2', body, flags=re.M)
+    # Signed-off-by: Long Name
+    # <email.here@example.com>
+    body = re.sub(r'^(\S+:\s+[^<]+)\n(<[^>]+>)$', r'\1 \2', body, flags=re.M)
+    # Signed-off-by: Foo foo <foo@foo.com>
+    # [for the thing that the thing is too long the thing that is
+    # thing but thing]
     pattern = re.compile(
-        r"^(?P<type>[a-zA-Z\-]+-by):[ \t]*(?P<name>[^<\n]+?)[ \t]*<(?P<email>[^>\n]+)>",
+        r"^\s*(?P<type>[a-zA-Z\-]+-by):[ \t]*(?P<name>[^<\n]+?)[ \t]*<(?P<email>[^>\n]+)>",
         re.MULTILINE | re.IGNORECASE,
     )
 
