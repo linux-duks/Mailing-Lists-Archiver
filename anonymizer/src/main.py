@@ -3,8 +3,15 @@ import os
 import polars as pl
 import hashlib
 import logging
+import itertools
 
-from constants import N_PROC, LISTS_TO_PARSE, ANONYMIZE_COLUMNS, ANONYMIZE_MAP
+from constants import (
+    N_PROC,
+    LISTS_TO_PARSE,
+    ANONYMIZE_COLUMNS,
+    ANONYMIZE_MAP,
+    SPLIT_DATASET_COLUMNS,
+)
 
 
 DEBUG = os.getenv("DEBUG", "false")
@@ -33,37 +40,66 @@ def parse_mail_at(mailing_list):
     """
 
     input_path = INPUT_DIR_PATH + "/" + mailing_list
-    output_path = OUTPUT_DIR_PATH + "/" + mailing_list
 
+    df = pl.DataFrame()
     try:
         df = pl.read_parquet(input_path)
         if len(df) == 0:
             return
-        for col in ANONYMIZE_COLUMNS:
-            logger.info(f"Running {col}")
-            df = df.with_columns(
-                pl.col(col)
-                .map_elements(lambda x: anonymizer(x), return_dtype=pl.self_dtype())
-                .alias(col),
-            )
 
-        for col in ANONYMIZE_MAP:
-            col_parts = col.split(".")
-            logger.info(
-                f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
+    except Exception as e:
+        logger.error(f"Failed to read dataset from {input_path} error:", e)
+        return
+
+    try:
+        base_df = ("__main_dataset", df)
+        # all operatins will be done on a list of dataframes
+        # first, create the split datasets generator
+        dfs = (
+            (
+                f"__id_map_{split_column}",
+                df.select(
+                    pl.col(split_column).alias(f"__original_{split_column}"),
+                    pl.col(split_column),
+                ),
             )
-            df = df.with_columns(
-                pl.col(col_parts[0])
-                .map_elements(
-                    lambda x: anonymize_map(x, col_parts[1]),
-                    return_dtype=pl.self_dtype(),
+            for split_column in SPLIT_DATASET_COLUMNS
+        )
+
+        # run the first dataset before going into the generator
+        for dataset_name, df in itertools.chain([base_df], dfs):
+            for col in ANONYMIZE_COLUMNS:
+                logger.info(f"Running {col}")
+
+                df = df.with_columns(
+                    pl.col(col)
+                    .map_elements(lambda x: anonymizer(x), return_dtype=pl.self_dtype())
+                    .alias(col),
                 )
-                .alias(col_parts[0]),
-            )
-        logger.info(f"Writing {output_path}")
 
-        os.makedirs(output_path, exist_ok=True)
-        df.write_parquet(output_path + "/data.parquet",compression="zstd", compression_level=22)
+            for col in ANONYMIZE_MAP:
+                col_parts = col.split(".")
+                logger.info(
+                    f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
+                )
+                df = df.with_columns(
+                    pl.col(col_parts[0])
+                    .map_elements(
+                        lambda x: anonymize_map(x, col_parts[1]),
+                        return_dtype=pl.self_dtype(),
+                    )
+                    .alias(col_parts[0]),
+                )
+            output_path = OUTPUT_DIR_PATH + f"/{dataset_name}/" + mailing_list
+
+            logger.info(f"Writing {output_path}")
+
+            os.makedirs(output_path, exist_ok=True)
+            df.write_parquet(
+                output_path + "/data.parquet",
+                compression="zstd",
+                compression_level=12,
+            )
     except Exception as e:
         raise (e)
 
