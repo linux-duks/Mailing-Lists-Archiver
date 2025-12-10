@@ -86,7 +86,7 @@ parse:
 		exit 1; \
 	else \
 		echo "==> Found files in 'output'. Changing to 'parser' directory..."; \
-		cd mlh_parser && $(CONTAINER)-compose up; \
+		cd mlh_parser && $(CONTAINER)-compose up && $(CONTAINER)-compose down -v; \
 	fi
 
 .PHONY: anonymize 
@@ -97,7 +97,7 @@ anonymize:
 		exit 1; \
 	else \
 		echo "==> Found files in 'parser_output/parsed'. Changing to 'anonymizer' directory..."; \
-		cd anonymizer && $(CONTAINER)-compose up; \
+		cd anonymizer && $(CONTAINER)-compose up && $(CONTAINER)-compose down -v; \
 	fi
 
 .PHONY: analysis 
@@ -108,10 +108,13 @@ analysis:
 		exit 1; \
 	else \
 		echo "==> Found files in 'parser_output/parsed'. Changing to 'analysis' directory..."; \
-		cd analysis && $(CONTAINER)-compose up; \
+		cd analysis && $(CONTAINER)-compose up && $(CONTAINER)-compose down -v; \
 	fi
 
-
+rebuild:
+	cd anonymizer && $(CONTAINER)-compose build
+	cd mlh_parser && $(CONTAINER)-compose build
+	cd analysis && $(CONTAINER)-compose build
 
 debug-parser:
 	cd mlh_parser && INPUT_DIR="../output" OUTPUT_DIR="../parser_output" uv run src/main.py
