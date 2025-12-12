@@ -42,7 +42,7 @@ build:
 		$(CONTAINER) run --rm \
 			-it -u $(id -u):$(id -g) \
 			--network=host \
-			-v ./mlh-archiver:/usr/src/app:z \
+			-v ./:/usr/src/app:z \
 			-w /usr/src/app \
 			$(DOCKER_IMAGE) \
 			cargo build --release; \
@@ -111,10 +111,14 @@ analysis:
 		cd analysis && $(CONTAINER)-compose up && $(CONTAINER)-compose down -v; \
 	fi
 
-rebuild:
+rebuild-anonymizer:
 	cd anonymizer && $(CONTAINER)-compose build
+rebuild-parser:
 	cd mlh_parser && $(CONTAINER)-compose build
+rebuild-analysis:
 	cd analysis && $(CONTAINER)-compose build
+
+rebuild: rebuild-parser rebuild-analysis rebuild-parser
 
 debug-parser:
 	cd mlh_parser && INPUT_DIR="../output" OUTPUT_DIR="../parser_output" uv run src/main.py
