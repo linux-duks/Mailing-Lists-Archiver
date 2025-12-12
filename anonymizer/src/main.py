@@ -73,34 +73,29 @@ def parse_mail_at(mailing_list):
                     logger.warn(f"Column {col} not available in dataset {dataset_name}")
                     continue
                 logger.info(f"Running '{col}'.'{dataset_name}'.'{input_path}'")
-                try:
-                    df = df.with_columns(
-                        pl.col(col)
-                        .map_elements(
-                            lambda x: anonymizer(x), return_dtype=pl.self_dtype()
-                        )
-                        .alias(col),
-                    )
+                df = df.with_columns(
+                    pl.col(col)
+                    .map_elements(lambda x: anonymizer(x), return_dtype=pl.self_dtype())
+                    .alias(col),
+                )
 
-                    for col in ANONYMIZE_MAP:
-                        col_parts = col.split(".")
-                        logger.info(
-                            f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
-                        )
-                        df = df.with_columns(
-                            pl.col(col_parts[0])
-                            .map_elements(
-                                lambda x: anonymize_map(x, col_parts[1]),
-                                return_dtype=pl.self_dtype(),
-                            )
-                            .alias(col_parts[0]),
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Failed running with column {col} in dataset {dataset_name}: ",
-                        e,
+            for col in ANONYMIZE_MAP:
+                col_parts = col.split(".")
+                if col not in df.columns:
+                    logger.warn(f"Column {col} not available in dataset {dataset_name}")
+                    continue
+                logger.info(f"Running '{col}'.'{dataset_name}'.'{input_path}'")
+                logger.info(
+                    f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
+                )
+                df = df.with_columns(
+                    pl.col(col_parts[0])
+                    .map_elements(
+                        lambda x: anonymize_map(x, col_parts[1]),
+                        return_dtype=pl.self_dtype(),
                     )
-                    raise (e)
+                    .alias(col_parts[0]),
+                )
 
             output_path = OUTPUT_DIR_PATH + f"/{dataset_name}/" + mailing_list
 
