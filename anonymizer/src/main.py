@@ -69,6 +69,9 @@ def parse_mail_at(mailing_list):
         # run the first dataset before going into the generator
         for dataset_name, df in itertools.chain([base_df], dfs):
             for col in ANONYMIZE_COLUMNS:
+                if col not in df.columns:
+                    logger.warn(f"Column {col} not available in dataset {dataset_name}")
+                    continue
                 logger.info(f"Running '{col}'.'{dataset_name}'.'{input_path}'")
                 try:
                     df = df.with_columns(
@@ -92,8 +95,12 @@ def parse_mail_at(mailing_list):
                             )
                             .alias(col_parts[0]),
                         )
-                except pl.exceptions.ColumnNotFoundError:
-                    logger.warn(f"Column {col} not found in dataset {dataset_name}")
+                except Exception as e:
+                    logger.error(
+                        f"Failed running with column {col} in dataset {dataset_name}: ",
+                        e,
+                    )
+                    raise (e)
 
             output_path = OUTPUT_DIR_PATH + f"/{dataset_name}/" + mailing_list
 
