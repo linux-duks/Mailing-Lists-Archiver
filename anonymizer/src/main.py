@@ -70,26 +70,31 @@ def parse_mail_at(mailing_list):
         for dataset_name, df in itertools.chain([base_df], dfs):
             for col in ANONYMIZE_COLUMNS:
                 logger.info(f"Running {col}")
-
-                df = df.with_columns(
-                    pl.col(col)
-                    .map_elements(lambda x: anonymizer(x), return_dtype=pl.self_dtype())
-                    .alias(col),
-                )
-
-            for col in ANONYMIZE_MAP:
-                col_parts = col.split(".")
-                logger.info(
-                    f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
-                )
-                df = df.with_columns(
-                    pl.col(col_parts[0])
-                    .map_elements(
-                        lambda x: anonymize_map(x, col_parts[1]),
-                        return_dtype=pl.self_dtype(),
+                try:
+                    df = df.with_columns(
+                        pl.col(col)
+                        .map_elements(
+                            lambda x: anonymizer(x), return_dtype=pl.self_dtype()
+                        )
+                        .alias(col),
                     )
-                    .alias(col_parts[0]),
-                )
+
+                    for col in ANONYMIZE_MAP:
+                        col_parts = col.split(".")
+                        logger.info(
+                            f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
+                        )
+                        df = df.with_columns(
+                            pl.col(col_parts[0])
+                            .map_elements(
+                                lambda x: anonymize_map(x, col_parts[1]),
+                                return_dtype=pl.self_dtype(),
+                            )
+                            .alias(col_parts[0]),
+                        )
+                except pl.exceptions.ColumnNotFoundError:
+                    logger.warn(f"Column {col} not found in dataset {dataset_name}")
+
             output_path = OUTPUT_DIR_PATH + f"/{dataset_name}/" + mailing_list
 
             logger.info(f"Writing {output_path}")
