@@ -69,7 +69,7 @@ def parse_mail_at(mailing_list):
         # run the first dataset before going into the generator
         for dataset_name, df in itertools.chain([base_df], dfs):
             for col in ANONYMIZE_COLUMNS:
-                logger.info(f"Running {col}")
+                logger.info(f"Running '{col}'.'{dataset_name}'.'{input_path}'")
                 try:
                     df = df.with_columns(
                         pl.col(col)
