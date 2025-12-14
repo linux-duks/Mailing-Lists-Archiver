@@ -41,74 +41,92 @@ def parse_mail_at(mailing_list):
 
     input_path = INPUT_DIR_PATH + "/" + mailing_list
 
-    df = pl.DataFrame()
-    try:
-        df = pl.read_parquet(input_path)
-        if len(df) == 0:
-            return
+    def read_dataset():
+        df = pl.DataFrame()
+        try:
+            df = pl.read_parquet(input_path)
+            if df.limit(1).is_empty():
+                return None
+            return df
 
-    except Exception as e:
-        logger.error(f"Failed to read dataset from {input_path} error:", e)
-        return
+        except Exception as e:
+            logger.error(f"Failed to read dataset from {input_path} error:", e)
+            return None
 
     try:
-        base_df = ("__main_dataset", df)
         # all operatins will be done on a list of dataframes
         # first, create the split datasets generator
-        dfs = (
-            (
-                f"__id_map_{split_column}",
-                df.select(
-                    pl.col(split_column).alias(f"__original_{split_column}"),
-                    pl.col(split_column),
-                ),
-            )
-            for split_column in SPLIT_DATASET_COLUMNS
-        )
+        def dataset_gnerator() -> pl.DataFrame:
+            for split_column in SPLIT_DATASET_COLUMNS:
+                # use the base dataset every time
+                df = read_dataset()
+                if df is not None:
+                    yield (
+                        f"__id_map_{split_column}",
+                        read_dataset().select(
+                            pl.col(split_column).alias(f"__original_{split_column}"),
+                            pl.col(split_column),
+                        ),
+                    )
+
+        # run the main dataset first
+        process_dataframe(read_dataset(), "__main_dataset", input_path, mailing_list)
 
         # run the first dataset before going into the generator
-        for dataset_name, df in itertools.chain([base_df], dfs):
-            for col in ANONYMIZE_COLUMNS:
-                if col not in df.columns:
-                    logger.warn(f"Column {col} not available in dataset {dataset_name}")
-                    continue
-                logger.info(f"Running '{col}'.'{dataset_name}'.'{input_path}'")
-                df = df.with_columns(
-                    pl.col(col)
-                    .map_elements(lambda x: anonymizer(x), return_dtype=pl.self_dtype())
-                    .alias(col),
-                )
+        for dataset_name, df in itertools.chain(dataset_gnerator()):
+            process_dataframe(df, dataset_name, input_path, mailing_list)
 
-            for col in ANONYMIZE_MAP:
-                col_parts = col.split(".")
-                if col not in df.columns:
-                    logger.warn(f"Column {col} not available in dataset {dataset_name}")
-                    continue
-                logger.info(f"Running '{col}'.'{dataset_name}'.'{input_path}'")
-                logger.info(
-                    f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
-                )
-                df = df.with_columns(
-                    pl.col(col_parts[0])
-                    .map_elements(
-                        lambda x: anonymize_map(x, col_parts[1]),
-                        return_dtype=pl.self_dtype(),
-                    )
-                    .alias(col_parts[0]),
-                )
-
-            output_path = OUTPUT_DIR_PATH + f"/{dataset_name}/" + mailing_list
-
-            logger.info(f"Writing {output_path}")
-
-            os.makedirs(output_path, exist_ok=True)
-            df.write_parquet(
-                output_path + "/data.parquet",
-                compression="zstd",
-                compression_level=12,
-            )
     except Exception as e:
         raise (e)
+
+
+def process_dataframe(df, dataset_name, input_path, mailing_list):
+    if df is None:
+        logger.warn(f"Dataset '{dataset_name}'.'{input_path}' did nor produce data")
+        return None
+    df_columns = df.collect_schema().names()
+    for col in ANONYMIZE_COLUMNS:
+        if col not in df_columns:
+            logger.warn(f"Column {col} not available in dataset {dataset_name}")
+            continue
+        logger.info(f"Running '{col}'.'{dataset_name}'.'{input_path}'")
+        df = df.with_columns(
+            pl.col(col)
+            .map_elements(lambda x: anonymizer(x), return_dtype=pl.self_dtype())
+            .alias(col),
+        )
+
+    for col in ANONYMIZE_MAP:
+        col_parts = col.split(".")
+        if col not in df_columns:
+            logger.warn(f"Column {col} not available in dataset {dataset_name}")
+            continue
+        logger.info(f"Running '{col}'.'{dataset_name}'.'{input_path}'")
+        logger.info(
+            f"Running map {col}. Will write '{col_parts[0]}' with '{col_parts[1]}' anonymized"
+        )
+        df = df.with_columns(
+            pl.col(col_parts[0])
+            .map_elements(
+                lambda x: anonymize_map(x, col_parts[1]),
+                return_dtype=pl.self_dtype(),
+            )
+            .alias(col_parts[0]),
+        )
+
+    output_path = OUTPUT_DIR_PATH + f"/{dataset_name}/" + mailing_list
+
+    logger.info(f"Writing {output_path}")
+
+    os.makedirs(output_path, exist_ok=True)
+    df.write_parquet(
+        output_path + "/data.parquet",
+        compression="zstd",
+        row_group_size=1024**2,  # double the default
+        data_page_size=(1024 * 2) ** 2,
+        compression_level=22,  # maximum compression for Zenodo
+    )
+    del df
 
 
 def generate_sha1_hash(input_string):
