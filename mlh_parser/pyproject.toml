@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 authors = [{ name = "Rafael Passos", email = "rafael@rcpassos.me" }]
 requires-python = ">=3.11"
-dependencies = ["polars~=1.35", "python-dateutil>=2.9.0.post0", "tqdm~=4.67"]
+dependencies = ["polars~=1.36", "python-dateutil>=2.9.0.post0", "tqdm~=4.67"]
 
 [project.optional-dependencies]
 dev = ["pytest"]

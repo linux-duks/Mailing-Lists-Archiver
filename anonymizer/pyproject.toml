@@ -2,7 +2,7 @@
 name = "mlh-mail-annonimizer"
 version = "0.0.1"
 dependencies = [
-    "polars~=1.35",
+    "polars~=1.36",
 ]
 
 requires-python = ">=3.12"
