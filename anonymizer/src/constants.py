@@ -8,6 +8,9 @@ ANONYMIZE_COLUMNS = [
     "cc",
 ]
 
+# generate a sub-dataset with a mapping of values for these columns
+SPLIT_DATASET_COLUMNS = ["from"]
+
 ANONYMIZE_MAP = [
     "trailers.identification",
 ]
