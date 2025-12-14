@@ -11,7 +11,7 @@ services:
     user: "${UID}:${GID}"
     volumes:
       - ./src/:/app/src/
-      - ./results/:/app/results/
+      - ./results/:/app/results/:z
       - ../parser_output/parsed/:/input:z
       - ../anonymizer_output:/anonymousinput:z
     ports:
