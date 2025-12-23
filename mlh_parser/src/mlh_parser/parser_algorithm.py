@@ -1,14 +1,13 @@
 import re
 from mlh_parser.constants import *
 import logging
-import email
-import email.policy
-import email.parser
 from email.message import EmailMessage
+from mlh_parser.email_reader import decode_mail, get_body, get_headers
 
 logger = logging.getLogger(__name__)
 
 
+# TODO: use to filder for wanted headers only
 def filter_data(data: dict) -> dict:
     result_dict = {key: data.get(key, "") for key in KEYS_MASK}
     return result_dict
@@ -16,7 +15,7 @@ def filter_data(data: dict) -> dict:
 
 # extract_attributions adapted from duks
 # https://archive.softwareheritage.org/swh:1:cnt:23277d72e0a7a6f76db8542b10ab36e02a1e6006;origin=https://github.com/linux-duks/DUKS;visit=swh:1:snp:7539517b28d48726b43e4ef69332f3168b251aa0;anchor=swh:1:rev:de4af688e88757f0d496c7a16e331845a40d3f1c;path=/scripts/grpc_script.py;lines=82
-def extract_attributions(commit_message) -> (list[dict] | list[str]):
+def extract_attributions(commit_message) -> list[dict] | list[str]:
     """
     Parses a git commit message and extracts all personal attributions.
 
@@ -35,14 +34,16 @@ def extract_attributions(commit_message) -> (list[dict] | list[str]):
 
     attributions = []
     # Ignore everything below standard email signature marker
-    body = commit_message.split('\n-- \n', 1)[0].strip() + '\n'
+    body = commit_message.split("\n-- \n", 1)[0].strip() + "\n"
     # Fix some more common copypasta trailer wrapping
     # Fixes: abcd0123 (foo bar
     # baz quux)
-    body = re.sub(r'^(\S+:\s+[\da-f]+\s+\([^)]+)\n([^\n]+\))', r'\1 \2', body, flags=re.M)
+    body = re.sub(
+        r"^(\S+:\s+[\da-f]+\s+\([^)]+)\n([^\n]+\))", r"\1 \2", body, flags=re.M
+    )
     # Signed-off-by: Long Name
     # <email.here@example.com>
-    body = re.sub(r'^(\S+:\s+[^<]+)\n(<[^>]+>)$', r'\1 \2', body, flags=re.M)
+    body = re.sub(r"^(\S+:\s+[^<]+)\n(<[^>]+>)$", r"\1 \2", body, flags=re.M)
     # Signed-off-by: Foo foo <foo@foo.com>
     # [for the thing that the thing is too long the thing that is
     # thing but thing]
@@ -100,36 +101,13 @@ def extract_patches(email_body) -> list[str]:
     return []
 
 
-def parse_header(msg: EmailMessage, data: dict) -> dict:
-    data = filter_data(msg)
-    return data
-
-
-def parse_raw_body(msg: EmailMessage) -> str:
-    charset = msg.get_content_charset()
-
-    body = msg.get_payload(decode=True)
-    text = ""
-    if body is not None:
-        text = body.decode(charset or "utf-8", errors="replace")
-    else:
-        print("Não há payload decodificável.")
-    
-    return text
-
-
 def parse_email_bytes_to_dict(email_raw: bytes) -> dict:
+    msg = decode_mail(email_raw)
 
-    policy = email.policy.default
-    msg = email.parser.BytesParser(policy=policy).parsebytes(email_raw)
-    
-    data = {}
-    data["raw_body"] = ""
-    data["code"] = []
+    data = get_headers(msg)
+    data["raw_body"] = get_body(msg)
 
-    data = parse_header(msg, data)
-    data["raw_body"] = parse_raw_body(msg)
-
+    # TODO: refactor
     data[SIGNED_BLOCK] = extract_attributions(data["raw_body"])
 
     try:
@@ -138,11 +116,11 @@ def parse_email_bytes_to_dict(email_raw: bytes) -> dict:
         logger.error("Body when failure appeared: \n %s", data["raw_body"])
         raise e
 
-    data = filter_data(data)
+    # data = filter_data(data)
 
-    result_dict = {}
+    # result_dict = {}
+    #
+    # for header, value in data.items():
+    #     result_dict[header] = str(value)
 
-    for header, value in data.items():
-        result_dict[header] = str(value)
-  
-    return result_dict
+    return data
