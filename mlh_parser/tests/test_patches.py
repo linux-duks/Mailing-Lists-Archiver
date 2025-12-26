@@ -223,7 +223,7 @@ index 73afed4..bde8f22 100644
 ]
 
 
-def test_corret_email() -> None:
+def test_correct_email() -> None:
     output = extract_patches(input_example_mail)
     assert output == diff
 

@@ -2,7 +2,7 @@ import io
 import os
 import re
 import polars as pl
-from dateutil import parser
+from mlh_parser.date_parser import process_date
 from tqdm import tqdm
 import logging
 
@@ -130,37 +130,7 @@ def post_process_parsed_mail(email_as_dict: dict):
     if isinstance(email_as_dict["references"], str):
         email_as_dict["references"] = email_as_dict["references"].split(" ")
 
-    old_date_time = email_as_dict["date"].strip()
-
-    if "(" in old_date_time:
-        old_date_time = old_date_time[: old_date_time.index("(")].strip()
-
-    if len(old_date_time) < 5:
-        email_as_dict["date"] = None
-    else:
-        try:
-            new_date_time = parser.parse(old_date_time, ignoretz=True)
-        except:
-            try:
-                new_date_time = parser.parse(
-                    old_date_time.replace(".", ":"), ignoretz=True
-                )
-            except:
-                try:
-                    new_date_time = parser.parse(
-                        old_date_time[: len("Fri, 15 Jun 2012 16:52:52")].strip(),
-                        ignoretz=True,
-                    )
-                except:
-                    try:
-                        new_date_time = parser.parse(
-                            old_date_time[: len("Fri, 5 Jun 2012 16:52:52")].strip(),
-                            ignoretz=True,
-                        )
-                    except:
-                        new_date_time = None
-
-        email_as_dict["date"] = new_date_time
+    email_as_dict = process_date(email_as_dict)
 
     return email_as_dict
 
