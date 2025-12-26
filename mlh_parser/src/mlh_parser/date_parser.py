@@ -154,7 +154,6 @@ def find_other_date_entries(email_as_dict):
     logging.debug(f"emails header list: {email_as_dict.keys()}")
     for col_opt in fallback_date_headers:
         values = email_as_dict.get(col_opt.lower())
-        # print("VAL::", values)
 
         if values:
             if not isinstance(values, list):
@@ -209,6 +208,5 @@ class StringDateFinder:
         res = self.datepattern.search(text)
         if res:
             res = res.group()
-            print("RES:::: ", res)
 
         return res
