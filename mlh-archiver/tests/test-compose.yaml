@@ -1,0 +1,7 @@
+services:
+  nttp_server:
+    build:
+      context: .
+      dockerfile: Containerfile
+    ports:
+      - "8119:8119"

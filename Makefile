@@ -6,10 +6,10 @@ else
 endif
 
 # Define the name of your binary
-BINARY_NAME = mailing-lists-archiver
+BINARY_NAME = mlh-archiver
 
 # Define the source path of the compiled binary
-TARGET_PATH = ./mlh-archiver/target/release/$(BINARY_NAME)
+TARGET_PATH = ./target/release/$(BINARY_NAME)
 
 # Define the Docker image to use for building
 RUST_DOCKER_IMAGE = docker.io/rust:1.91-slim
@@ -43,13 +43,13 @@ build:
 		$(CONTAINER) run --rm \
 			-it -u $(id -u):$(id -g) \
 			--network=host \
-			-v ./mlh-archiver:/usr/src/app:z \
+			-v ./:/usr/src/app:z \
 			-w /usr/src/app \
 			$(RUST_DOCKER_IMAGE) \
 			cargo build --release; \
 	fi
-	@echo "==> Copying binary '$(BINARY_NAME)' from target..."
-	cp $(TARGET_PATH) ./$(BINARY_NAME)
+	@echo "==> Copying binary '$(BINARY_NAME).out' from target..."
+	cp $(TARGET_PATH) ./$(BINARY_NAME).out
 
 # ------------------------------------------------------------------------------
 # UTILITY TARGETS
@@ -60,7 +60,7 @@ build:
 clean:
 	@echo "==> Cleaning up build artifacts..."
 	@cargo clean
-	@rm -f ./$(BINARY_NAME)
+	@rm -f ./$(BINARY_NAME).out
 
 
 # ------------------------------------------------------------------------------
@@ -70,12 +70,12 @@ clean:
 
 .PHONY: run
 run:
-	@if [ ! -f ./$(BINARY_NAME) ]; then \
-		echo "==> Binary './$(BINARY_NAME)' not found. Building first..."; \
+	@if [ ! -f ./$(BINARY_NAME).out ]; then \
+		echo "==> Binary './$(BINARY_NAME).out' not found. Building first..."; \
 		$(MAKE) build; \
 	fi
 	@echo "==> Running application..."
-	@./$(BINARY_NAME)
+	@./$(BINARY_NAME).out
 
 # Target to run the parser
 # Checks if 'output' dir exists and is not empty, then runs docker-compose.
@@ -87,7 +87,7 @@ parse:
 		exit 1; \
 	else \
 		echo "==> Found files in 'output'. Changing to 'parser' directory..."; \
-		cd mlh_parser && $(CONTAINER)-compose up; \
+		cd mlh_parser && $(CONTAINER)-compose up && $(CONTAINER)-compose down -v; \
 	fi
 
 .PHONY: anonymize 
@@ -98,7 +98,7 @@ anonymize:
 		exit 1; \
 	else \
 		echo "==> Found files in 'parser_output/parsed'. Changing to 'anonymizer' directory..."; \
-		cd anonymizer && $(CONTAINER)-compose up; \
+		cd anonymizer && $(CONTAINER)-compose up && $(CONTAINER)-compose down -v; \
 	fi
 
 .PHONY: analysis 
@@ -109,10 +109,17 @@ analysis:
 		exit 1; \
 	else \
 		echo "==> Found files in 'parser_output/parsed'. Changing to 'analysis' directory..."; \
-		cd analysis && $(CONTAINER)-compose up; \
+		cd analysis && $(CONTAINER)-compose up && $(CONTAINER)-compose down -v; \
 	fi
 
+rebuild-anonymizer:
+	cd anonymizer && $(CONTAINER)-compose build
+rebuild-parser:
+	cd mlh_parser && $(CONTAINER)-compose build
+rebuild-analysis:
+	cd analysis && $(CONTAINER)-compose build
 
+rebuild: rebuild-parser rebuild-analysis rebuild-parser
 
 debug-parser:
 	cd mlh_parser && INPUT_DIR="../output" OUTPUT_DIR="../parser_output" uv run src/main.py

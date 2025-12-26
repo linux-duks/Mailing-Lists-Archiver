@@ -6,9 +6,13 @@ use std::{
     path::Path,
 };
 
-pub fn write_lines_file(path: &Path, lines: Vec<String>) -> io::Result<()> {
+pub fn write_lines_file(file_path: &Path, lines: Vec<String>) -> io::Result<()> {
     // Create or open (truncate) a file for writing
-    let file = File::create(path)?;
+    // check if parent folder need to be created first
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let file = File::create(file_path)?;
     let mut file = LineWriter::new(file);
 
     lines
@@ -17,24 +21,29 @@ pub fn write_lines_file(path: &Path, lines: Vec<String>) -> io::Result<()> {
 
     file.flush()?;
 
-    log::debug!("file written {}", path.to_str().unwrap());
+    log::debug!("file written {}", file_path.to_str().unwrap());
 
     Ok(())
 }
 
-pub fn append_line_to_file(path: &Path, line: &str) -> io::Result<()> {
+pub fn append_line_to_file(file_path: &Path, line: &str) -> io::Result<()> {
+    // check if parent folder need to be created first
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     // Open the file in append mode, creating it if it doesn't exist
     let mut file = OpenOptions::new()
         .append(true) // Enable append mode
         .create(true) // Create the file if it doesn't exist
-        .open(path)?; // Open the file and handle potential errors
+        .open(file_path)?; // Open the file and handle potential errors
 
     // Write the line to the file
     writeln!(file, "{}", line)?;
 
     log::debug!(
         "Line appended successfully to {}",
-        path.to_str().unwrap_or("")
+        file_path.to_str().unwrap_or("")
     );
 
     Ok(())
@@ -69,11 +78,17 @@ pub fn write_yaml<T>(file_name: &str, value: &T) -> io::Result<()>
 where
     T: ?Sized + ser::Serialize,
 {
+    // check if parent folder need to be created first
+    let file_path = Path::new(file_name);
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     let f = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(false)
-        .open(file_name)?;
+        .open(file_path)?;
 
     serde_yaml::to_writer(f, value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     Ok(())
@@ -87,4 +102,18 @@ where
     let res: T = serde_yaml::from_str(&yaml_content)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     return Ok(res);
+}
+
+pub fn check_or_create_folder(folder_path: String) -> io::Result<()> {
+    let p = Path::new(&folder_path);
+    if p.exists() {
+        log::debug!("Folder '{}' definitely exists.", folder_path);
+    } else {
+        fs::create_dir_all(&folder_path)?;
+        log::warn!(
+            "Folder '{}' does not exist (this should not happen after create_dir_all).",
+            folder_path
+        );
+    }
+    Ok(())
 }

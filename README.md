@@ -3,7 +3,15 @@
 Collect and archive locally all emails from mailing lists.
 This is in active development. It currently supports reading from NNTP endpoints.
 
-# Usage
+This project a few main components:
+
+1. [Archiver](#archiver) : Keep (raw) local copies of emails in from mailing lists
+2. [Mailing List Parser](#mailing-list-parser): Parse the raw copies into a Parquet columnar dataset
+3. [Anonymizer](#anonymizer): Pseudo-anonymize personal identification from the dataset
+
+# Archiver
+
+## Usage
 
 To compile this program, use the `make build` command. The rust compiler with the `cargo` utility is needed.
 If not available, the makefile will use `podman` or `docker` and build the program using the container image for the rust compiler.
@@ -18,16 +26,17 @@ It will look for nntp_config*.{json,yaml,toml}.
 A custom config file path can be passed with the flag `-c`. Ex: `cargo run  -c other_nntp_config.yaml`
 
 ```bash
-Usage: mailing-lists-archiver [OPTIONS]
+Usage: mlh-archiver [OPTIONS]
 
 Options:
   -c, --config-file <CONFIG_FILE>      [default: nntp_config*]
-  -H, --hostname <HOSTNAME>            
-  -p, --port <PORT>                    [default: 119]
-  -o, --output-dir <OUTPUT_DIR>        [default: ./output]
-  -n, --nthreads <NTHREADS>            [default: 1]
-      --group-lists <GROUP_LISTS>      
-      --article-range <ARTICLE_RANGE>  comma separated values, or dash separated ranges, like low-high
+  -H, --hostname <HOSTNAME>            nntp server domain/ip
+  -p, --port <PORT>                    nntp serrver port [default: 119]
+  -o, --output-dir <OUTPUT_DIR>        where results will be stored [default: ./output]
+  -n, --nthreads <NTHREADS>            Number of worker threads connecting to different lists [default: 1]
+  -l, --loop-groups                    If true, the app will keep running forever. Otherwise, stop after reading all groups
+      --group-lists <GROUP_LISTS>      List of groups to be read. "ALL" will select all lists available. Empty value will prompt a selection in the TUI (and save selected values)
+      --article-range <ARTICLE_RANGE>  (optional). Read a specific range of articles from the first list provided. Comma separated values, or dash separated ranges, like low-high
   -h, --help                           Print help
 ```
 
@@ -43,6 +52,7 @@ hostname: "rcpassos.me"
 port: 119
 nthreads: 2
 output_dir: "./output"
+loop-groups: true
 group_lists:
   - dev.rcpassos.me.lists.gfs2
   - dev.rcpassos.me.lists.iommu
@@ -50,10 +60,16 @@ group_lists:
 
 ## Implementation
 
-This is the basic algorithm used by this script
+The archiver is implemented in rust, and uses a NNTP library we forked.
+It is designed to be a multi-thread* process that can keep the local files up-to-date with the articles (emails) available in the NNTP server.
+It is, however, not designed to pull emails as fast as possible, as it could be seen as a malicious our abusive scraping bot.
+
+> *Each thread is able to check one mail-group (mailing list) at a time from the server.
+> A thread will only fetch one email at a time.
+
 ![fluxogram](./docs/fluxogram.svg)
 
-# Email Parser
+# Mailing List Parser
 
 Used to parse the output emails from the Archiver into a columnar parquet dataset
 

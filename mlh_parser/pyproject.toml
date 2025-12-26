@@ -3,19 +3,13 @@ name = "mlh-parser"
 version = "0.1.0"
 description = "Add your description here"
 authors = [{ name = "Rafael Passos", email = "rafael@rcpassos.me" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
+
 dependencies = [
-    "polars~=1.35",
-    "python-dateutil>=2.9.0.post0",
-    "tqdm~=4.67",
+	"polars~=1.36", 
+	"python-dateutil>=2.9.0.post0", 
+	"tqdm~=4.67"
 ]
-
-[project.optional-dependencies]
-dev = [
-	"pytest",
-	"freezegun>=1.5.5",
-]
-
 
 [project.scripts]
 mlh-parser = "mlh_parser:main"

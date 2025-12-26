@@ -2,7 +2,7 @@ use crate::errors;
 use crate::file_utils;
 use log::{Level, log_enabled};
 use nntp::NNTPStream;
-use std::{path::Path, thread::sleep, time::Duration};
+use std::{fmt, path::Path, thread::sleep, time::Duration};
 
 pub fn connect_to_nntp(address: String) -> nntp::Result<NNTPStream> {
     let mut nntp_stream = match NNTPStream::connect(address) {
@@ -33,10 +33,6 @@ pub struct Worker {
     base_output_path: String,
     needs_reconnection: bool,
     receiver: crossbeam_channel::Receiver<String>,
-    response_channel: (
-        crossbeam_channel::Sender<WorkerGroupResult>,
-        crossbeam_channel::Receiver<WorkerGroupResult>,
-    ),
 }
 
 impl Worker {
@@ -46,10 +42,6 @@ impl Worker {
         port: u16,
         base_output_path: String,
         receiver: crossbeam_channel::Receiver<String>,
-        response_channel: (
-            crossbeam_channel::Sender<WorkerGroupResult>,
-            crossbeam_channel::Receiver<WorkerGroupResult>,
-        ),
     ) -> Worker {
         let nntp_stream = connect_to_nntp(format!("{}:{}", hostname.clone(), port))
             .expect("Worker should have connected to the server");
@@ -61,13 +53,13 @@ impl Worker {
             nntp_stream,
             needs_reconnection: false,
             receiver,
-            response_channel,
         }
     }
 
-    pub fn consume(&mut self) -> crate::Result<()> {
+    pub fn run(&mut self) -> crate::Result<()> {
         log::info!("W{}: started consumming tasks", self.id);
         loop {
+            // check if reconnection is needed before trying to connect
             if self.needs_reconnection {
                 log::debug!("W{}: will attempt a reconnection soon", self.id);
                 // wait  a minute before trying to reconnect
@@ -84,50 +76,55 @@ impl Worker {
                         return Err(errors::Error::NNTP(e));
                     }
                 }
-            } else {
-                // interval between checks to task list
-                std::thread::sleep(Duration::from_secs(5));
             }
+
             log::info!("W{}: Reading new group from channel", self.id);
             let group_name = self.receiver.recv().unwrap();
-            let handler_result = self.handle_group(group_name.clone());
-            if let Err(err) = handler_result {
-                if nntp::errors::check_network_error(&err) {
-                    log::warn!(
-                        "W{}: failed with a network error while reading {group_name}. Error {}",
-                        self.id,
-                        &err
-                    );
-                    std::thread::sleep(Duration::from_secs(5));
-                } else {
-                    log::error!(
-                        "W{}: failed while processing {group_name} with error {}",
-                        self.id,
-                        &err
-                    );
+            // let handler_result =
+            match self.handle_group(group_name.clone()) {
+                Ok(return_status) => {
+                    log::info!("W{}: completed a task with: {return_status}", self.id);
                 }
-
-                // when an error happens, force a reconnection
-                self.needs_reconnection = true;
-                // attempt to close connection
-                match self.nntp_stream.quit() {
-                    Ok(_) => {
-                        log::debug!("W{}: Connection closed successfully", self.id);
-                    }
-                    Err(err) => {
+                Err(err) => {
+                    if nntp::errors::check_network_error(&err) {
                         log::warn!(
-                            "W{}: Failed when closing connection with error {err}. Waiting before triggering a reconnection",
-                            self.id
+                            "W{}: failed with a network error while reading {group_name}. Error {}",
+                            self.id,
+                            &err
                         );
-                        std::thread::sleep(Duration::from_secs(5));
+                        // if connection error was returned, sleep a bit
+                        std::thread::sleep(Duration::from_secs(10));
+                    } else {
+                        log::error!(
+                            "W{}: failed while processing {group_name} with error {}",
+                            self.id,
+                            &err
+                        );
+                    }
+
+                    // when an error happens, force a reconnection
+                    self.needs_reconnection = true;
+                    // attempt to close connection
+                    match self.nntp_stream.quit() {
+                        Ok(_) => {
+                            log::debug!("W{}: Connection closed successfully", self.id);
+                        }
+                        Err(err) => {
+                            log::warn!(
+                                "W{}: Failed when closing connection with error {err}. Waiting before triggering a reconnection",
+                                self.id
+                            );
+                            std::thread::sleep(Duration::from_secs(5));
+                        }
                     }
                 }
-            }
-            log::info!("W{}: completed a task", self.id);
+            };
+            // interval between tasks
+            std::thread::sleep(Duration::from_secs(1));
         }
     }
 
-    pub fn handle_group(&mut self, group_name: String) -> nntp::Result<()> {
+    pub fn handle_group(&mut self, group_name: String) -> nntp::Result<WorkerGroupResult> {
         let read_status: ReadStatus = match file_utils::read_yaml::<ReadStatus>(
             format!(
                 "{}/{}/__last_article_number",
@@ -194,38 +191,21 @@ impl Worker {
                         last_article_number.max(group.low as usize),
                         group.high as usize,
                     ) {
-                        Ok(_) => {
-                            // if successful, reschedule
-                            self.response_channel
-                                .0
-                                .send(WorkerGroupResult::Ok(group_name.clone()))
-                                .unwrap();
+                        Ok(num_emails_read) => {
+                            return Ok(WorkerGroupResult::Ok(group_name, num_emails_read));
                         }
                         Err(e) => {
-                            // if found a failure, reschedule and return error
-                            // TODO: check for connection errors here ?
-                            self.response_channel
-                                .0
-                                .send(WorkerGroupResult::Failed(group_name.clone()))
-                                .unwrap();
+                            log::error!("W{}: Failed reading new mails: {e}", self.id);
+                            // TODO: return failure instead of error ?
                             return Err(e);
                         }
                     };
-                    // reschedule
-                    self.response_channel
-                        .0
-                        .send(WorkerGroupResult::Ok(group_name.clone()))
-                        .unwrap();
                 } else {
                     log::info!(
                         "W{}: Checking group : {group_name}. Local max ID: {last_article_number}",
                         self.id
                     );
-                    // no new emails, reschedule for next minute
-                    self.response_channel
-                        .0
-                        .send(WorkerGroupResult::NoNews(group_name.clone()))
-                        .unwrap();
+                    return Ok(WorkerGroupResult::NoNews(group_name));
                 }
             }
             Err(e) => {
@@ -233,13 +213,10 @@ impl Worker {
                     "W{}: failure connecting to {group_name}, error: {e}",
                     self.id
                 );
-                self.response_channel
-                    .0
-                    .send(WorkerGroupResult::Failed(group_name.clone()))
-                    .unwrap();
+                return Err(e);
             }
         }
-        Ok(())
+        // Ok(())
     }
 
     pub fn handle_group_range(
@@ -264,14 +241,21 @@ impl Worker {
                     "W{}: failure connecting to {group_name}, error: {e}",
                     self.id
                 );
+                return Err(e);
             }
         }
         Ok(())
     }
 
     // read_new_mails checks for mails in an inclusive range between low and high
-    fn read_new_mails(&mut self, group_name: String, low: usize, high: usize) -> nntp::Result<()> {
+    fn read_new_mails(
+        &mut self,
+        group_name: String,
+        low: usize,
+        high: usize,
+    ) -> nntp::Result<usize> {
         // take the last_article_number or the "low"" result for the group
+        let mut num_emails_read: usize = 0;
         for current_mail in low..=high {
             match self.get_raw_article_by_number_retryable(current_mail as isize, 3) {
                 Ok(raw_article) => {
@@ -286,6 +270,7 @@ impl Worker {
                         raw_article,
                     )
                     .unwrap();
+                    num_emails_read += 1;
 
                     // write ReadStatus
                     file_utils::write_yaml(
@@ -330,7 +315,7 @@ impl Worker {
                 (current_mail as f64 / high as f64 * 100.0)
             );
         }
-        return Ok(());
+        return Ok(num_emails_read);
     }
 
     fn get_raw_article_by_number_retryable(
@@ -373,9 +358,26 @@ impl Worker {
 }
 
 pub enum WorkerGroupResult {
-    Ok(String),
-    Failed(String),
+    Ok(String, usize),
     NoNews(String),
+    // Failed(String),
+}
+
+impl fmt::Display for WorkerGroupResult {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self {
+            WorkerGroupResult::Ok(group_name, num_emails) => {
+                write!(
+                    f,
+                    "Collected {num_emails} new e-mails from {:?}",
+                    group_name
+                )
+            }
+            WorkerGroupResult::NoNews(group_name) => {
+                write!(f, "No New e-mails from {:?}", group_name)
+            }
+        }
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

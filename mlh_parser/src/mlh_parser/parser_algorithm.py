@@ -1,7 +1,6 @@
 import re
 from mlh_parser.constants import *
 import logging
-from email.message import EmailMessage
 from mlh_parser.email_reader import decode_mail, get_body, get_headers
 
 logger = logging.getLogger(__name__)

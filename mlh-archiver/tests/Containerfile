@@ -1,0 +1,17 @@
+FROM docker.io/node:24-alpine
+
+WORKDIR /app
+
+COPY ./test_nttp_server/package*.json ./
+
+# Install dependencies
+RUN npm i
+
+# Copy the rest of the application code
+COPY ./test_nttp_server .
+
+# Expose the port your Node.js application listens on
+EXPOSE 8119
+
+# Define the command to run the application when the container starts
+CMD ["npm", "run", "serve"] 
